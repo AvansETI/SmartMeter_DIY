@@ -1,0 +1,8 @@
+EESchema-DOCLIB  Version 2.0
+#
+$CMP D1_Mini
+D wifi board based on ESP-8266EX.
+F https://wiki.wemos.cc/products:d1:d1_mini
+$ENDCMP
+#
+#End Doc Library
