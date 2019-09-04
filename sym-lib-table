@@ -1,5 +1,0 @@
-(sym_lib_table
-  (lib (name D1_Mini)(type Legacy)(uri ${KIPRJMOD}/Libs/WEMOS_D1/D1_Mini.lib)(options "")(descr ""))
-  (lib (name wemos_mini)(type Legacy)(uri ${KIPRJMOD}/Libs/wemos_D1_mini/wemos_mini.lib)(options "")(descr ""))
-  (lib (name Timer)(type Legacy)(uri ${KIPRJMOD}/Libs/Timer.lib)(options "")(descr ""))
-)
