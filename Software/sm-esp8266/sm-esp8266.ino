@@ -208,20 +208,20 @@ notes:
 Version :      DMK, Initial code
 *******************************************************************/
 {    
-   // Define I/O and attach ISR
-   pinMode(RST_PIN, INPUT);
-
-   // Init with red led
-   smartLedInit();
-   for(int idx = 0; idx < 5; idx++ ) {
-      smartLedFlash(10);
-      delay(100);
-   }
+  // Define I/O and attach ISR
+  pinMode(RST_PIN, INPUT);
+  
+  // Init with red led
+  smartLedInit();
+  for(int idx = 0; idx < 5; idx++ ) {
+    smartLedFlash(10);
+    delay(100);
+  }
 
   // Setup unique mqtt id and mqtt topic string
   create_unique_mqtt_topic_string(app_config.mqtt_topic);
   create_unigue_mqtt_id(app_config.mqtt_id);
-  sprintf(mqtt_topic,"eti-sm");
+  sprintf(mqtt_topic,"smartmeter/raw");
 
    // Perform factory reset switches
    // is pressed during powerup
@@ -237,19 +237,19 @@ Version :      DMK, Initial code
 
   // Read config file or generate default
   if( !readAppConfig(&app_config) ) {
-    strcpy(app_config.mqtt_username, "");
-    strcpy(app_config.mqtt_password, "");
-    strcpy(app_config.mqtt_remote_host, "test.mosquitto.org");
-    strcpy(app_config.mqtt_remote_port, "1883");
+    strcpy(app_config.mqtt_username, "smartmeter");
+    strcpy(app_config.mqtt_password, "se_smartmeter");
+    strcpy(app_config.mqtt_remote_host, "sendlab.avansti.nl");
+    strcpy(app_config.mqtt_remote_port, "11883");
     writeAppConfig(&app_config);
   }
 
-   //
-   smartLedShowColor({0,255,0});
-   wifiManager.setMinimumSignalQuality(20);
-   wifiManager.setTimeout(300);
-   wifiManager.setSaveConfigCallback(saveConfigCallback);
-   shouldSaveConfig = false;
+  //
+  smartLedShowColor({0,255,0});
+  wifiManager.setMinimumSignalQuality(20);
+  wifiManager.setTimeout(300);
+  wifiManager.setSaveConfigCallback(saveConfigCallback);
+  shouldSaveConfig = false;
 
   // Adds some parameters to the default webpage
   WiFiManagerParameter wmp_text("<br/>MQTT setting:</br>");
@@ -270,10 +270,10 @@ Version :      DMK, Initial code
   WiFiManagerParameter mqqt_topic_text(fd_str);
   wifiManager.addParameter(&mqqt_topic_text);
    
-   if( !wifiManager.autoConnect("Emon configuratie")) {
-      delay(1000);
-      ESP.reset();
-   }
+  if( !wifiManager.autoConnect("Emon configuratie")) {
+    delay(1000);
+    ESP.reset();
+  }
 
   //
   // Update config if needed
@@ -286,30 +286,30 @@ Version :      DMK, Initial code
     writeAppConfig(&app_config);
   }
    
-   //
-   if( !MDNS.begin("DIY-EMON_V10") ) {
-   } else {
-      MDNS.addService("diy_emon_v10", "tcp", 10000);
-   }
-
-   //
-   //Serial.begin(9600, SERIAL_7E1);
-   Serial.begin(115200, SERIAL_8N1);
-
-   #ifdef DEBUG
-   Serial1.begin(115200, SERIAL_8N1);
-   Serial1.printf("\n\r... in debug mode ...\n\r");
-   #endif
-
-   delay(1000);
-
-   // Relocate Serial Port
-   //Serial.swap();
-
-   // Debug
-   DEBUG_PRINTF("SDK Version: %s\n\r", ESP.getSdkVersion() );
-   DEBUG_PRINTF("CORE Version: %s\n\r", ESP.getCoreVersion().c_str() );
-   DEBUG_PRINTF("RESET: %s\n\r", ESP.getResetReason().c_str() );
+  //
+  if( !MDNS.begin("DIY-EMON_V10") ) {
+  } else {
+    MDNS.addService("diy_emon_v10", "tcp", 10000);
+  }
+  
+  //
+  //Serial.begin(9600, SERIAL_7E1);
+  Serial.begin(115200, SERIAL_8N1);
+  
+  #ifdef DEBUG
+  Serial1.begin(115200, SERIAL_8N1);
+  Serial1.printf("\n\r... in debug mode ...\n\r");
+  #endif
+  
+  delay(1000);
+  
+  // Relocate Serial Port
+  //Serial.swap();
+  
+  // Debug
+  DEBUG_PRINTF("SDK Version: %s\n\r", ESP.getSdkVersion() );
+  DEBUG_PRINTF("CORE Version: %s\n\r", ESP.getCoreVersion().c_str() );
+  DEBUG_PRINTF("RESET: %s\n\r", ESP.getResetReason().c_str() );
   Serial.printf("OAT ready\n");
   Serial.printf("mqtt_username: %s\n", app_config.mqtt_username);
   Serial.printf("mqtt_password: %s\n", app_config.mqtt_password);
@@ -317,12 +317,11 @@ Version :      DMK, Initial code
   Serial.printf("mqtt_topic: %s\n", mqtt_topic);
   Serial.printf("mqtt_remote_host: %s\n", app_config.mqtt_remote_host);
   Serial.printf("mqtt_remote_port: %s\n", app_config.mqtt_remote_port);
-   smartLedShowColor({0,255,0});
-
-   delay(1000);
-
-   DEBUG_PRINTF("%s:freq: %d Mhz\n\r", __FUNCTION__, ESP.getCpuFreqMHz());
-   delay(1000);
+  smartLedShowColor({0,255,0});
+  delay(1000);
+  
+  DEBUG_PRINTF("%s:freq: %d Mhz\n\r", __FUNCTION__, ESP.getCpuFreqMHz());
+  delay(1000);
 
   // Initialise FSM
   initFSM(STATE_START, EV_IDLE);
@@ -331,8 +330,10 @@ Version :      DMK, Initial code
   sim.attach(5, sim_callback);
 }
 
+//
 void sim_callback() {
-    raiseEvent(EV_P1_AVAILABLE);
+  strcpy(p1_buf,"/XMX5LGBBFG1012471273\r\n\r\n1-3:0.2.8(42)\r\n0-0:1.0.0(190927214707S)\r\n0-0:96.1.1(4530303331303033323530393235343136)\r\n1-0:1.8.1(008771.849*kWh)\r\n1-0:1.8.2(006475.011*kWh)\r\n1-0:2.8.1(003412.635*kWh)\r\n1-0:2.8.2(008741.572*kWh)\r\n0-0:96.14.0(0001)\r\n1-0:1.7.0(00.792*kW)\r\n1-0:2.7.0(00.000*kW)\r\n0-0:96.7.21(00004)\r\n0-0:96.7.9(00003)\r\n1-0:99.97.0(3)(0-0:96.7.19)(181124150040W)(0000001888*s)(180206113955W)(0000004457*s)(170905104526S)(0000003233*s)\r\n1-0:32.32.0(00000)\r\n1-0:32.36.0(00000)\r\n0-0:96.13.1()\r\n0-0:96.13.0()\r\n1-0:31.7.0(004*A)\r\n1-0:21.7.0(00.792*kW)\r\n1-0:22.7.0(00.000*kW)\r\n0-1:24.1.0(003)\r\n0-1:96.1.0(4730303235303033333133333737333135)\r\n0-1:24.2.1(190927210000S)(03749.001*m3)\r\n!1A6A\r\n");
+  raiseEvent(EV_P1_AVAILABLE);
 }
 
 /******************************************************************/
@@ -415,8 +416,8 @@ Version :   DMK, Initial code
   int port = atoi(app_config.mqtt_remote_port);
   
   mqttClient.setClient(wifiClient);
-  mqttClient.setServer(host, port);
-  if(mqttClient.connect(app_config.mqtt_id)){
+  mqttClient.setServer(host, port );
+  if(mqttClient.connect(app_config.mqtt_id, app_config.mqtt_username, app_config.mqtt_password)){
 
     // Subscribe to mqtt topic
     mqttClient.subscribe(mqtt_topic);
@@ -568,32 +569,6 @@ Version :      DMK, Initial code
       }
    } 
 }
-
-//
-///*******************************************************************/
-//void jsonifyPayload(MEASUREMENT_STRUCT *payload, char *body, int lenght )
-///* 
-//short:         
-//inputs:        
-//outputs: 
-//notes:         
-//Version :      DMK, Initial code
-//*******************************************************************/
-//{
-//  DynamicJsonDocument doc(2048);
-//  doc["signature"] = app_config.mqtt_id;
-//  doc["datagram"] = String(payload->p1_telegram);
-//  //serializeJson(doc, body);
-//
-//  
-////   StaticJsonBuffer<1024> jsonBuffer;
-////
-////   JsonObject& root = jsonBuffer.createObject();
-////   JsonObject& datagram = root.createNestedObject("datagram");
-////   datagram["p1"] = String(payload->p1_telegram);
-////
-////   root.printTo(body, 1024);
-//}
 
 /******************************************************************/
 /*
