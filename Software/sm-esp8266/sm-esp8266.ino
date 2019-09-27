@@ -39,6 +39,9 @@
 #include <ESP8266mDNS.h>
 #include <ArduinoJson.h>
 #include <FS.h>
+#include <Ticker.h>
+
+Ticker sim;
 
 #include <PubSubClient.h>
 // MAKE SURE: in PubSubClient.h change MQTT_MAX_PACKET_SIZE to 2048 !! //
@@ -51,7 +54,8 @@
 #define DEBUG
 
 #ifdef DEBUG
- #define DEBUG_PRINTF(format, ...) (Serial1.printf(format, __VA_ARGS__))
+ //#define DEBUG_PRINTF(format, ...) (Serial1.printf(format, __VA_ARGS__))
+ #define DEBUG_PRINTF(format, ...) (Serial.printf(format, __VA_ARGS__))
 #else
  #define DEBUG_PRINTF
 #endif
@@ -59,7 +63,7 @@
 // WiFi RESET pin
 #define RST_PIN         4
 
-#define DATAGRAM_UPDATE_RATE_MS  30000
+#define MQTT_TOPIC_UPDATE_RATE_MS  30000
 
 // Local variables
 uint32_t cur=0, prev=0;
@@ -106,6 +110,62 @@ PubSubClient mqttClient("", 0, wifiClient);
 char p1_buf[P1_MAX_DATAGRAM_SIZE]; // Complete P1 telegram
 char *p1;
 
+/* Prototype FSM functions. */
+void start_pre(void);
+void start_heartbeat(void);
+void start_post(void);
+
+void idle_pre(void);
+void idle_heartbeat(void);
+void idle_post(void);
+
+void mqtt_pre(void);
+void mqtt_heartbeat(void);
+void mqtt_post(void);
+
+/* Define FSM (states, events) */
+typedef enum { EV_P1_AVAILABLE, EV_IDLE } ENUM_EVENT;
+typedef enum { STATE_START, STATE_IDLE, STATE_MQTT } ENUM_STATE;
+
+/* Define FSM transition */
+typedef struct {
+   void (*pre)(void);
+   void (*heartbeat)(void);
+   void (*post)(void);
+   ENUM_STATE nextState;
+} STATE_TRANSITION_STRUCT;
+
+// SmartMeter reader FSM definition (see statemachine diagram)
+//
+//        | EV_P1_AVAILABLE  EV_IDLE
+// -----------------------------------------------------------------
+// START  | -                ILDE   Handle STARTUP      
+// IDLE   | MQTT             -      Handle IDLE loop
+// MQTT   | -                IDLE   Handle Sending P1 message to broker 
+STATE_TRANSITION_STRUCT fsm[3][2] = {
+  { 
+    {start_pre, start_heartbeat, start_post, STATE_START},
+    {start_pre, start_heartbeat, start_post, STATE_IDLE}
+  },  // State START
+  { 
+    {idle_pre, idle_heartbeat, idle_post, STATE_MQTT},
+    {idle_pre, idle_heartbeat, idle_post, STATE_IDLE}
+  },  // State IDLE
+  { 
+    {mqtt_pre, mqtt_heartbeat, mqtt_post, STATE_MQTT},
+    {mqtt_pre, mqtt_heartbeat, mqtt_post, STATE_IDLE}
+  },  // State MQTT
+};
+
+// State holder
+ENUM_STATE state;
+ENUM_EVENT event;
+
+// Heartbeat (polling)
+#define HEARTBEAT_UPDATE_INTERVAL_SEC 1000 * 1
+uint32_t heartbeat_prev=0, mqtt_throttle_prev = 0;
+
+
 // P1 statemachine
 typedef enum { 
    P1_MSG_S0,
@@ -120,53 +180,8 @@ typedef struct {
 } MEASUREMENT_STRUCT;
 MEASUREMENT_STRUCT payload = {""};
 
-// Prototype state functions. 
-void s0(void);
-void s1(void);
-void s2(void);
-void s3(void);
-void s4(void);
-void err(void);
-
-// Define FSM (states, events)
-typedef enum { EV_TRUE = 0, EV_ERR, EV_TELE, EV_ILOG } ENUM_EVENT;
-typedef enum { STATE_S0 = 0, STATE_S1, STATE_S2, STATE_S3, STATE_S4, STATE_ERR } ENUM_STATE;
-
-/* Define fsm transition */
-typedef struct {
-   void (*f)(void);
-   ENUM_STATE nextState;
-} STATE_TRANSITION_STRUCT;
-
-typedef enum {NO_ERR = 0, ERR_NETWORK, ERR_INVALID_CREDENTIALS } API_ERR_ENUM;
-API_ERR_ENUM api_err = NO_ERR; 
-
-// FSM definition (see statemachine diagram)
-//
-//       | EV_TRUE   EV_ERR   EV_TELE  EV_ILOG   
-// -------------------------------------------------------------
-// S0    | S1        ERROR    ERROR    ERROR
-// S1    | S3        ERROR    ERROR    S2
-// S2    | S3        ERROR    ERROR    ERROR
-// S3    | ERROR     ERROR    S4       ERROR
-// S4    | S3        ERROR    ERROR    ERROR
-// ERROR | S0        ERROR    ERROR    ERROR
-
-STATE_TRANSITION_STRUCT fsm[6][4] = {
-   { {s1,   STATE_S1},  {err, STATE_ERR}, {err, STATE_ERR}, {err, STATE_ERR} }, // State S0
-   { {s3,   STATE_S3},  {err, STATE_ERR}, {err, STATE_ERR}, {s2,   STATE_S2} }, // State S1
-   { {s3,   STATE_S3},  {err, STATE_ERR}, {err, STATE_ERR}, {err, STATE_ERR} }, // State S2
-   { {s3,   STATE_S3},  {err, STATE_ERR}, {s4,  STATE_S4},  {err, STATE_ERR} }, // State S3
-   { {s3,   STATE_S3},  {err, STATE_ERR}, {err, STATE_ERR}, {err, STATE_ERR} }, // State S4
-   { {s0,   STATE_S0},  {err, STATE_ERR}, {err, STATE_ERR}, {err,  STATE_ERR} } // State ERROR
-};
-
-// State holder
-ENUM_STATE state = STATE_ERR;
-ENUM_EVENT event = EV_TRUE;
-
-// mqtt topic strings: emon/<uid>/msg
-char mqtt_topic_msg[128];
+// mqtt topic strings: eti-sm
+char mqtt_topic[128];
 
 
 /******************************************************************/
@@ -206,7 +221,7 @@ Version :      DMK, Initial code
   // Setup unique mqtt id and mqtt topic string
   create_unique_mqtt_topic_string(app_config.mqtt_topic);
   create_unigue_mqtt_id(app_config.mqtt_id);
-  sprintf(mqtt_topic_msg,"mon/%s/msg",app_config.mqtt_topic);
+  sprintf(mqtt_topic,"eti-sm");
 
    // Perform factory reset switches
    // is pressed during powerup
@@ -251,7 +266,7 @@ Version :      DMK, Initial code
   // Add the unit ID to the webpage
   char fd_str[128]="<p>Your EMON ID: <b>";
   strcat(fd_str, app_config.mqtt_topic);
-  strcat(fd_str, "</b>Make SCREENSHOT - you will need this info later!</p>");
+  strcat(fd_str, "</b> Make a SCREENSHOT - you will need this info later!</p>");
   WiFiManagerParameter mqqt_topic_text(fd_str);
   wifiManager.addParameter(&mqqt_topic_text);
    
@@ -289,7 +304,7 @@ Version :      DMK, Initial code
    delay(1000);
 
    // Relocate Serial Port
-   Serial.swap();
+   //Serial.swap();
 
    // Debug
    DEBUG_PRINTF("SDK Version: %s\n\r", ESP.getSdkVersion() );
@@ -299,7 +314,7 @@ Version :      DMK, Initial code
   Serial.printf("mqtt_username: %s\n", app_config.mqtt_username);
   Serial.printf("mqtt_password: %s\n", app_config.mqtt_password);
   Serial.printf("mqtt_id: %s\n", app_config.mqtt_id);
-  Serial.printf("mqtt_topic MSG: %s\n", mqtt_topic_msg);
+  Serial.printf("mqtt_topic: %s\n", mqtt_topic);
   Serial.printf("mqtt_remote_host: %s\n", app_config.mqtt_remote_host);
   Serial.printf("mqtt_remote_port: %s\n", app_config.mqtt_remote_port);
    smartLedShowColor({0,255,0});
@@ -308,7 +323,64 @@ Version :      DMK, Initial code
 
    DEBUG_PRINTF("%s:freq: %d Mhz\n\r", __FUNCTION__, ESP.getCpuFreqMHz());
    delay(1000);
+
+  // Initialise FSM
+  initFSM(STATE_START, EV_IDLE);
+
+  // Simulation P1 messages
+  sim.attach(5, sim_callback);
 }
+
+void sim_callback() {
+    raiseEvent(EV_P1_AVAILABLE);
+}
+
+/******************************************************************/
+void loop()
+/* 
+short:         loop(), runs forever executing FSM
+inputs:        
+outputs: 
+notes:         
+Version :      DMK, Initial code
+*******************************************************************/
+{
+
+  // Check for IP connection 
+  if( WiFi.status() == WL_CONNECTED) {
+
+    // Handle mqtt
+    if( !mqttClient.connected() ) {
+      mqtt_connect();
+      delay(250);
+    } else {
+      // Handle MQTT loop
+      mqttClient.loop();
+    }
+  }
+
+  // Capture P1 messages. If P1 msg is available raise MQTT event
+  if( true == capture_p1() ) {
+    raiseEvent(EV_P1_AVAILABLE);
+  }
+
+  // 
+  // Handle heartbeat (Ticker.h causes crashes)
+  //
+  uint32_t heartbeat_cur = millis();
+  uint32_t heartbeat_elapsed = heartbeat_cur - heartbeat_prev;
+  if( heartbeat_elapsed >= HEARTBEAT_UPDATE_INTERVAL_SEC ) {
+    
+    //
+    heartbeat_prev = heartbeat_cur; 
+    
+    // Call the heartbeat fp
+    if( fsm[state][event].heartbeat != NULL) {
+      fsm[state][event].heartbeat() ;
+    } 
+  }
+}
+
 
 /******************************************************************
 *
@@ -346,8 +418,8 @@ Version :   DMK, Initial code
   mqttClient.setServer(host, port);
   if(mqttClient.connect(app_config.mqtt_id)){
 
-    // Subscribe to ../raw and ../msg
-    mqttClient.subscribe(mqtt_topic_msg);
+    // Subscribe to mqtt topic
+    mqttClient.subscribe(mqtt_topic);
 
     // Set callback
     mqttClient.setCallback(mqtt_callback);
@@ -497,42 +569,31 @@ Version :      DMK, Initial code
    } 
 }
 
-
-
-/******************************************************************/
-void loop()
-/* 
-short:         loop(), runs forever executing FSM
-inputs:        
-outputs: 
-notes:         
-Version :      DMK, Initial code
-*******************************************************************/
-{
-  handleEvent();
-}
-
-
-
-
-/*******************************************************************/
-void jsonifyPayload(MEASUREMENT_STRUCT *payload, char *body, int lenght )
-/* 
-short:         
-inputs:        
-outputs: 
-notes:         
-Version :      DMK, Initial code
-*******************************************************************/
-{   
-//   StaticJsonBuffer<1024> jsonBuffer;
 //
-//   JsonObject& root = jsonBuffer.createObject();
-//   JsonObject& datagram = root.createNestedObject("datagram");
-//   datagram["p1"] = String(payload->p1_telegram);
+///*******************************************************************/
+//void jsonifyPayload(MEASUREMENT_STRUCT *payload, char *body, int lenght )
+///* 
+//short:         
+//inputs:        
+//outputs: 
+//notes:         
+//Version :      DMK, Initial code
+//*******************************************************************/
+//{
+//  DynamicJsonDocument doc(2048);
+//  doc["signature"] = app_config.mqtt_id;
+//  doc["datagram"] = String(payload->p1_telegram);
+//  //serializeJson(doc, body);
 //
-//   root.printTo(body, 1024);
-}
+//  
+////   StaticJsonBuffer<1024> jsonBuffer;
+////
+////   JsonObject& root = jsonBuffer.createObject();
+////   JsonObject& datagram = root.createNestedObject("datagram");
+////   datagram["p1"] = String(payload->p1_telegram);
+////
+////   root.printTo(body, 1024);
+//}
 
 /******************************************************************/
 /*
@@ -670,15 +731,34 @@ Version :   DMK, Initial code
 {
 }
 
+/******************************************************************
+*
+* FSM section
+*
+******************************************************************/
 
 /******************************************************************/
-/*
- * FSM section
- */
-/******************************************************************/
+void initFSM(ENUM_STATE new_state, ENUM_EVENT new_event)
+/* 
+short:         
+inputs:        
+outputs: 
+notes:         
+Version :      DMK, Initial code
+*******************************************************************/
+{
+  // Set start state
+  state = new_state;
+  event = new_event;
+
+  // and call event.pre
+  if( fsm[state][event].pre != NULL) {
+    fsm[state][event].pre() ;
+  } 
+}
  
 /******************************************************************/
-void raiseEvent(ENUM_EVENT newEvent)
+void raiseEvent(ENUM_EVENT new_event)
 /* 
 short:         
 inputs:        
@@ -687,111 +767,97 @@ notes:
 Version :      DMK, Initial code
 *******************************************************************/
 {
-   event = newEvent;
+  // call event.post
+  if( fsm[state][event].post != NULL) {
+    fsm[state][event].post() ;
+  } 
+  
+  // Set new state
+  ENUM_STATE new_state = fsm[state][new_event].nextState;
+  
+  // call newstate ev.pre
+  if( fsm[new_state][new_event].pre != NULL) {
+    fsm[new_state][new_event].pre() ;
+  } 
+  
+  // Set new state
+  state = new_state;
+  
+  // Store new event
+  event = new_event;
+}
+
+/******************************************************************
+*
+* FSM callbacks section
+*
+******************************************************************/
+
+/******************************************************************/
+void start_pre(void){
+  DEBUG_PRINTF("%s:\n\r", __FUNCTION__);
+  // Enter idle mode
+  raiseEvent(EV_IDLE);
+}
+
+/******************************************************************/
+void start_heartbeat(void){
+//  DEBUG_PRINTF(">%s:\n\r", __FUNCTION__);
+}
+
+/******************************************************************/
+void start_post(void){
+  DEBUG_PRINTF("%s:\n\r", __FUNCTION__);
+}
+
+/******************************************************************/
+void idle_pre(void){
+  DEBUG_PRINTF("%s:\n\r", __FUNCTION__);
+}
+
+/******************************************************************/
+void idle_heartbeat(void){
+//  DEBUG_PRINTF(">%s:\n\r", __FUNCTION__);
+}
+
+/******************************************************************/
+void idle_post(void){
+  DEBUG_PRINTF("%s:\n\r", __FUNCTION__);
 }
 
 
 /******************************************************************/
-void handleEvent()
-/* 
-short:         
-inputs:        
-outputs: 
-notes:         
-Version :      DMK, Initial code
-*******************************************************************/
-{
-   ENUM_EVENT prev = event;
-      
-   // Call State function
-   if( fsm[state][event].f != NULL) {
-      fsm[state][event].f() ;
-   } 
-   
-   // Set new state
-   state = fsm[state][prev].nextState;
+void mqtt_pre(void){
+  DEBUG_PRINTF("%s:\n\r", __FUNCTION__);
 }
 
 /******************************************************************/
-void s0(void)
-/* 
-short:      Login         
-inputs:        
-outputs:    api_session_token and api_client_id
-notes:         
-Version :   DMK, Initial code
-*******************************************************************/
-{
-  DEBUG_PRINTF(">%s:\n\r", __FUNCTION__);
-  DEBUG_PRINTF("<%s\n\r", __FUNCTION__);
+void mqtt_heartbeat(void){
+  DEBUG_PRINTF("%s:\n\r", __FUNCTION__);
+
+  // Throttle mqqt topic speed: check if previous send MQTT
+  // is at least MQTT_TOPIC_UPDATE_RATE_MS seconds ago
+  //
+  uint32_t mqtt_throttle_cur = millis();
+  uint32_t mqtt_throttle_elapsed = mqtt_throttle_cur - mqtt_throttle_prev;
+  if( mqtt_throttle_elapsed >= MQTT_TOPIC_UPDATE_RATE_MS ) {
+    //
+    mqtt_throttle_prev = mqtt_throttle_cur; 
+  
+    // Construct json object and publish
+    DynamicJsonDocument doc(2048);
+    doc["signature"] = app_config.mqtt_id;
+    doc["datagram"] = p1_buf;
+    String payload = "";
+    serializeJson(doc, payload);
+    mqttClient.publish(mqtt_topic, payload.c_str());
+  }
+
+  // Always back to idle
+  raiseEvent(EV_IDLE);
 }
 
 /******************************************************************/
-void s1(void)
-/* 
-short:      Request api_logger_id         
-inputs:        
-outputs:    api_logger_id.
-notes:         
-Version :   DMK, Initial code
-*******************************************************************/
-{
-  DEBUG_PRINTF(">%s:\n\r", __FUNCTION__);
-  DEBUG_PRINTF("<%s\n\r", __FUNCTION__);
-}
-
-/******************************************************************/
-void s2(void)
-/* 
-short:         
-inputs:        
-outputs: 
-notes:         
-Version :      DMK, Initial code
-*******************************************************************/
-{  
-  DEBUG_PRINTF(">%s:\n\r", __FUNCTION__);
-  DEBUG_PRINTF("<%s\n\r", __FUNCTION__);
-}
-
-/******************************************************************/
-void s3(void)
-/* 
-short:         
-inputs:        
-outputs: 
-notes:         
-Version :      DMK, Initial code
-*******************************************************************/
-{
-  DEBUG_PRINTF(">%s:\n\r", __FUNCTION__);
-  DEBUG_PRINTF("<%s\n\r", __FUNCTION__);
-}
-
-/******************************************************************/
-void s4(void)
-/* 
-short:         
-inputs:        
-outputs: 
-notes:         
-Version :      DMK, Initial code
-*******************************************************************/
-{
-  DEBUG_PRINTF(">%s:\n\r", __FUNCTION__);
-  DEBUG_PRINTF("<%s\n\r", __FUNCTION__);
-}
-
-/******************************************************************/
-void err(void)
-/* 
-short:         
-inputs:        
-outputs: 
-notes:         
-Version :      DMK, Initial code
-*******************************************************************/
-{
-  DEBUG_PRINTF(">%s:\n\r", __FUNCTION__);
-  DEBUG_PRINTF("<%s\n\r", __FUNCTION__);
+void mqtt_post(void){
+  DEBUG_PRINTF("%s:\n\r", __FUNCTION__);
 }
