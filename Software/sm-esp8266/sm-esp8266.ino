@@ -61,7 +61,10 @@ Ticker sim;
 #endif
 
 // WiFi RESET pin
-#define RST_PIN         4
+#define RST_PIN         4   // Wemos D4
+#define RGB_R_PIN       15  // Wemos D8
+#define RGB_G_PIN       5   // Wemos D1
+#define RGB_B_PIN       14  // Wemos D5
 
 #define MQTT_TOPIC_UPDATE_RATE_MS  30000
 
@@ -69,9 +72,13 @@ Ticker sim;
 uint32_t cur=0, prev=0;
 WiFiManager wifiManager;
 
-typedef struct {
-  uint8_t red, green, blue;
-} RGB_STRUCT;
+typedef enum {
+  RED = 0, GREEN, BLUE
+} RGB_COLOR_ENUM;
+
+typedef enum {
+  OFF = 0, ON
+} RGB_STATE_ENUM;
 
 // Application configs struct. 
 bool shouldSaveConfig;
@@ -209,12 +216,15 @@ Version :      DMK, Initial code
 *******************************************************************/
 {    
   // Define I/O and attach ISR
-  pinMode(RST_PIN, INPUT);
+  pinMode(RST_PIN, INPUT);      // Reset
+  pinMode(RGB_R_PIN, OUTPUT);   // Red RGB led
+  pinMode(RGB_G_PIN, OUTPUT);   // Green RGB led
+  pinMode(RGB_B_PIN, OUTPUT);   // Blue RGB led
   
   // Init with red led
   smartLedInit();
   for(int idx = 0; idx < 5; idx++ ) {
-    smartLedFlash(10);
+    smartLedFlash(RED);
     delay(100);
   }
 
@@ -229,7 +239,7 @@ Version :      DMK, Initial code
       wifiManager.resetSettings();
       deleteAppConfig();
       while(0 == digitalRead(RST_PIN)) {
-         smartLedFlash(10);
+         smartLedFlash(RED);
          delay(500);
       }
       ESP.reset();
@@ -245,7 +255,7 @@ Version :      DMK, Initial code
   }
 
   //
-  smartLedShowColor({0,255,0});
+  smartLedColor(GREEN, ON);
   wifiManager.setMinimumSignalQuality(20);
   wifiManager.setTimeout(300);
   wifiManager.setSaveConfigCallback(saveConfigCallback);
@@ -317,7 +327,7 @@ Version :      DMK, Initial code
   Serial.printf("mqtt_topic: %s\n", mqtt_topic);
   Serial.printf("mqtt_remote_host: %s\n", app_config.mqtt_remote_host);
   Serial.printf("mqtt_remote_port: %s\n", app_config.mqtt_remote_port);
-  smartLedShowColor({0,255,0});
+  smartLedColor(GREEN, ON);
   delay(1000);
   
   DEBUG_PRINTF("%s:freq: %d Mhz\n\r", __FUNCTION__, ESP.getCpuFreqMHz());
@@ -671,7 +681,7 @@ Version :      DMK, Initial code
 /******************************************************************/
  
 /******************************************************************/
-void smartLedShowColor(RGB_STRUCT color)
+void smartLedColor(RGB_COLOR_ENUM color, RGB_STATE_ENUM state)
 /* 
 short:         
 inputs:        
@@ -680,10 +690,23 @@ notes:
 Version :      DMK, Initial code
 *******************************************************************/
 {
+  switch( color ) {
+    case RED:
+      digitalWrite(RGB_R_PIN, state);
+      break;
+    case GREEN:
+      digitalWrite(RGB_G_PIN, state);
+      break;
+    case BLUE:
+      digitalWrite(RGB_B_PIN, state);
+      break;
+    default:
+      break;
+  }
 }
 
 /******************************************************************/
-void smartLedFlash(uint8_t level)
+void smartLedFlash(RGB_COLOR_ENUM color)
 /* 
 short:      Flash current color         
 inputs:        
@@ -692,6 +715,25 @@ notes:
 Version :   DMK, Initial code
 *******************************************************************/
 {
+    switch( color ) {
+    case RED:
+      digitalWrite(RGB_R_PIN, ON);
+      delay(100);
+      digitalWrite(RGB_R_PIN, OFF);
+      break;
+    case GREEN:
+      digitalWrite(RGB_G_PIN, ON);
+      delay(100);
+      digitalWrite(RGB_G_PIN, OFF);
+      break;
+    case BLUE:
+      digitalWrite(RGB_B_PIN, ON);
+      delay(100);
+      digitalWrite(RGB_B_PIN, OFF);
+      break;
+    default:
+      break;
+  }
 }
 
 /******************************************************************/
@@ -704,6 +746,9 @@ notes:
 Version :   DMK, Initial code
 *******************************************************************/
 {
+  digitalWrite(RGB_R_PIN, 0);
+  digitalWrite(RGB_G_PIN, 0);
+  digitalWrite(RGB_B_PIN, 0);
 }
 
 /******************************************************************
