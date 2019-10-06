@@ -77,7 +77,7 @@ typedef enum {
 } RGB_COLOR_ENUM;
 
 typedef enum {
-  OFF = 0, ON
+  ON = 0, OFF
 } RGB_STATE_ENUM;
 
 // Application configs struct. 
@@ -172,7 +172,6 @@ ENUM_EVENT event;
 #define HEARTBEAT_UPDATE_INTERVAL_SEC 1000 * 1
 uint32_t heartbeat_prev=0, mqtt_throttle_prev = 0;
 
-
 // P1 statemachine
 typedef enum { 
    P1_MSG_S0,
@@ -223,8 +222,8 @@ Version :      DMK, Initial code
   
   // Init with red led
   smartLedInit();
-  for(int idx = 0; idx < 5; idx++ ) {
-    smartLedFlash(RED);
+  for(int idx = 0; idx < 10; idx++ ) {
+    smartLedFlash(BLUE);
     delay(100);
   }
 
@@ -239,12 +238,15 @@ Version :      DMK, Initial code
       wifiManager.resetSettings();
       deleteAppConfig();
       while(0 == digitalRead(RST_PIN)) {
-         smartLedFlash(RED);
-         delay(500);
+         smartLedFlash(BLUE);
+         delay(2000);
       }
       ESP.reset();
    }
 
+  //
+  smartLedColor(BLUE, ON);
+  
   // Read config file or generate default
   if( !readAppConfig(&app_config) ) {
     strcpy(app_config.mqtt_username, "smartmeter");
@@ -254,8 +256,6 @@ Version :      DMK, Initial code
     writeAppConfig(&app_config);
   }
 
-  //
-  smartLedColor(GREEN, ON);
   wifiManager.setMinimumSignalQuality(20);
   wifiManager.setTimeout(300);
   wifiManager.setSaveConfigCallback(saveConfigCallback);
@@ -280,7 +280,7 @@ Version :      DMK, Initial code
   WiFiManagerParameter mqqt_topic_text(fd_str);
   wifiManager.addParameter(&mqqt_topic_text);
    
-  if( !wifiManager.autoConnect("Emon configuratie")) {
+  if( !wifiManager.autoConnect("ETI EMON config")) {
     delay(1000);
     ESP.reset();
   }
@@ -327,11 +327,8 @@ Version :      DMK, Initial code
   Serial.printf("mqtt_topic: %s\n", mqtt_topic);
   Serial.printf("mqtt_remote_host: %s\n", app_config.mqtt_remote_host);
   Serial.printf("mqtt_remote_port: %s\n", app_config.mqtt_remote_port);
-  smartLedColor(GREEN, ON);
-  delay(1000);
   
   DEBUG_PRINTF("%s:freq: %d Mhz\n\r", __FUNCTION__, ESP.getCpuFreqMHz());
-  delay(1000);
 
   // Initialise FSM
   initFSM(STATE_START, EV_IDLE);
@@ -718,17 +715,17 @@ Version :   DMK, Initial code
     switch( color ) {
     case RED:
       digitalWrite(RGB_R_PIN, ON);
-      delay(100);
+      delay(50);
       digitalWrite(RGB_R_PIN, OFF);
       break;
     case GREEN:
       digitalWrite(RGB_G_PIN, ON);
-      delay(100);
+      delay(50);
       digitalWrite(RGB_G_PIN, OFF);
       break;
     case BLUE:
       digitalWrite(RGB_B_PIN, ON);
-      delay(100);
+      delay(50);
       digitalWrite(RGB_B_PIN, OFF);
       break;
     default:
@@ -746,9 +743,9 @@ notes:
 Version :   DMK, Initial code
 *******************************************************************/
 {
-  digitalWrite(RGB_R_PIN, 0);
-  digitalWrite(RGB_G_PIN, 0);
-  digitalWrite(RGB_B_PIN, 0);
+  digitalWrite(RGB_R_PIN, 1);
+  digitalWrite(RGB_G_PIN, 1);
+  digitalWrite(RGB_B_PIN, 1);
 }
 
 /******************************************************************
@@ -816,7 +813,12 @@ Version :      DMK, Initial code
 /******************************************************************/
 void start_pre(void){
   DEBUG_PRINTF("%s:\n\r", __FUNCTION__);
-  // Enter idle mode
+  
+  // Enter idle mode. DIsplay GREEN for 2 seconds and go Idle
+  smartLedInit();
+  smartLedColor(GREEN, ON);
+  delay(3000);
+  
   raiseEvent(EV_IDLE);
 }
 
@@ -828,6 +830,9 @@ void start_heartbeat(void){
 /******************************************************************/
 void start_post(void){
   DEBUG_PRINTF("%s:\n\r", __FUNCTION__);
+
+  // Turn GREEN LED off
+  smartLedColor(GREEN, OFF);
 }
 
 /******************************************************************/
@@ -871,6 +876,9 @@ void mqtt_heartbeat(void){
     String payload = "";
     serializeJson(doc, payload);
     mqttClient.publish(mqtt_topic, payload.c_str());
+
+    // Flash LED
+    smartLedFlash(GREEN);
   }
 
   // Always back to idle
