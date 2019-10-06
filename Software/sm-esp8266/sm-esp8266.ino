@@ -41,8 +41,6 @@
 #include <FS.h>
 #include <Ticker.h>
 
-Ticker sim;
-
 #include <PubSubClient.h>
 // MAKE SURE: in PubSubClient.h change MQTT_MAX_PACKET_SIZE to 2048 !! //
 
@@ -54,8 +52,7 @@ Ticker sim;
 #define DEBUG
 
 #ifdef DEBUG
- //#define DEBUG_PRINTF(format, ...) (Serial1.printf(format, __VA_ARGS__))
- #define DEBUG_PRINTF(format, ...) (Serial.printf(format, __VA_ARGS__))
+ #define DEBUG_PRINTF(format, ...) (Serial1.printf(format, __VA_ARGS__))
 #else
  #define DEBUG_PRINTF
 #endif
@@ -66,7 +63,7 @@ Ticker sim;
 #define RGB_G_PIN       5   // Wemos D1
 #define RGB_B_PIN       14  // Wemos D5
 
-#define MQTT_TOPIC_UPDATE_RATE_MS  30000
+#define MQTT_TOPIC_UPDATE_RATE_MS  20000
 
 // Local variables
 uint32_t cur=0, prev=0;
@@ -101,11 +98,7 @@ typedef struct {
 
 APP_CONFIG_STRUCT app_config;
 
-#ifdef SECURE
-WiFiClientSecure wifiClient;
-#else
 WiFiClient wifiClient;
-#endif
 
 // Only with some dummy values seems to work ... instead of mqttClient();
 PubSubClient mqttClient("", 0, wifiClient);
@@ -305,42 +298,34 @@ Version :      DMK, Initial code
   //
   //Serial.begin(9600, SERIAL_7E1);
   Serial.begin(115200, SERIAL_8N1);
+  Serial.println("Let's rock and swap() serial ...");
   
   #ifdef DEBUG
   Serial1.begin(115200, SERIAL_8N1);
   Serial1.printf("\n\r... in debug mode ...\n\r");
   #endif
-  
-  delay(1000);
+
+  // Allow bootloader to connect: do not remove!
+  delay(3000);
   
   // Relocate Serial Port
-  //Serial.swap();
+  Serial.swap();
   
   // Debug
   DEBUG_PRINTF("SDK Version: %s\n\r", ESP.getSdkVersion() );
   DEBUG_PRINTF("CORE Version: %s\n\r", ESP.getCoreVersion().c_str() );
   DEBUG_PRINTF("RESET: %s\n\r", ESP.getResetReason().c_str() );
-  Serial.printf("OAT ready\n");
-  Serial.printf("mqtt_username: %s\n", app_config.mqtt_username);
-  Serial.printf("mqtt_password: %s\n", app_config.mqtt_password);
-  Serial.printf("mqtt_id: %s\n", app_config.mqtt_id);
-  Serial.printf("mqtt_topic: %s\n", mqtt_topic);
-  Serial.printf("mqtt_remote_host: %s\n", app_config.mqtt_remote_host);
-  Serial.printf("mqtt_remote_port: %s\n", app_config.mqtt_remote_port);
-  
+  DEBUG_PRINTF("%s","OAT ready\n");
+  DEBUG_PRINTF("mqtt_username: %s\n", app_config.mqtt_username);
+  DEBUG_PRINTF("mqtt_password: %s\n", app_config.mqtt_password);
+  DEBUG_PRINTF("mqtt_id: %s\n", app_config.mqtt_id);
+  DEBUG_PRINTF("mqtt_topic: %s\n", mqtt_topic);
+  DEBUG_PRINTF("mqtt_remote_host: %s\n", app_config.mqtt_remote_host);
+  DEBUG_PRINTF("mqtt_remote_port: %s\n", app_config.mqtt_remote_port);
   DEBUG_PRINTF("%s:freq: %d Mhz\n\r", __FUNCTION__, ESP.getCpuFreqMHz());
 
   // Initialise FSM
   initFSM(STATE_START, EV_IDLE);
-
-  // Simulation P1 messages
-  sim.attach(5, sim_callback);
-}
-
-//
-void sim_callback() {
-  strcpy(p1_buf,"/XMX5LGBBFG1012471273\r\n\r\n1-3:0.2.8(42)\r\n0-0:1.0.0(190927214707S)\r\n0-0:96.1.1(4530303331303033323530393235343136)\r\n1-0:1.8.1(008771.849*kWh)\r\n1-0:1.8.2(006475.011*kWh)\r\n1-0:2.8.1(003412.635*kWh)\r\n1-0:2.8.2(008741.572*kWh)\r\n0-0:96.14.0(0001)\r\n1-0:1.7.0(00.792*kW)\r\n1-0:2.7.0(00.000*kW)\r\n0-0:96.7.21(00004)\r\n0-0:96.7.9(00003)\r\n1-0:99.97.0(3)(0-0:96.7.19)(181124150040W)(0000001888*s)(180206113955W)(0000004457*s)(170905104526S)(0000003233*s)\r\n1-0:32.32.0(00000)\r\n1-0:32.36.0(00000)\r\n0-0:96.13.1()\r\n0-0:96.13.0()\r\n1-0:31.7.0(004*A)\r\n1-0:21.7.0(00.792*kW)\r\n1-0:22.7.0(00.000*kW)\r\n0-1:24.1.0(003)\r\n0-1:96.1.0(4730303235303033333133333737333135)\r\n0-1:24.2.1(190927210000S)(03749.001*m3)\r\n!1A6A\r\n");
-  raiseEvent(EV_P1_AVAILABLE);
 }
 
 /******************************************************************/
@@ -408,7 +393,6 @@ Version : DMK, Initial code
 {
 }
 
-#ifndef SECURE
 /******************************************************************/
 void mqtt_connect() 
 /* 
@@ -431,12 +415,11 @@ Version :   DMK, Initial code
 
     // Set callback
     mqttClient.setCallback(mqtt_callback);
-    Serial.printf("%s: MQTT connected to %s:%d\n", __FUNCTION__, host, port);
+    DEBUG_PRINTF("%s: MQTT connected to %s:%d\n", __FUNCTION__, host, port);
   } else {
-    Serial.printf("%s: MQTT connection ERROR (%s:%d)\n", __FUNCTION__, host, port);
+    DEBUG_PRINTF("%s: MQTT connection ERROR (%s:%d)\n", __FUNCTION__, host, port);
   }
 }
-#endif
 
 /******************************************************************/
 void create_unique_mqtt_topic_string(char *topic_string)
@@ -866,13 +849,29 @@ void mqtt_heartbeat(void){
   uint32_t mqtt_throttle_cur = millis();
   uint32_t mqtt_throttle_elapsed = mqtt_throttle_cur - mqtt_throttle_prev;
   if( mqtt_throttle_elapsed >= MQTT_TOPIC_UPDATE_RATE_MS ) {
+
     //
     mqtt_throttle_prev = mqtt_throttle_cur; 
   
     // Construct json object and publish
     DynamicJsonDocument doc(2048);
-    doc["signature"] = app_config.mqtt_id;
-    doc["datagram"] = p1_buf;
+    JsonObject root = doc.to<JsonObject>();
+    
+    JsonObject datagram = root.createNestedObject("datagram");
+    datagram["p1"] = p1_buf;
+
+    datagram["signature"] = app_config.mqtt_id;
+
+    JsonObject s0 = datagram.createNestedObject("s0");
+    s0["unit"] = "W";
+    s0["label"] = "e-car charger";
+    s0["value"] = 0;
+    
+    JsonObject s1 = datagram.createNestedObject("s1");
+    s1["unit"] = "W";
+    s1["label"] = "solar panels";
+    s1["value"] = 0;
+    
     String payload = "";
     serializeJson(doc, payload);
     mqttClient.publish(mqtt_topic, payload.c_str());
