@@ -58,10 +58,10 @@
 #endif
 
 // WiFi RESET pin
-#define RST_PIN         4   // Wemos D4
-#define RGB_R_PIN       15  // Wemos D8
-#define RGB_G_PIN       5   // Wemos D1
-#define RGB_B_PIN       14  // Wemos D5
+#define RST_PIN         D4  // Wemos D4
+#define RGB_R_PIN       D8  // Wemos D8
+#define RGB_G_PIN       D1  // Wemos D1
+#define RGB_B_PIN       D5  // Wemos D5
 
 #define MQTT_TOPIC_UPDATE_RATE_MS  20000
 
@@ -215,10 +215,11 @@ Version :      DMK, Initial code
   
   // Init with red led
   smartLedInit();
-  for(int idx = 0; idx < 10; idx++ ) {
+  for(int idx = 0; idx < 25; idx++ ) {
     smartLedFlash(BLUE);
     delay(100);
   }
+  delay(2000);
 
   // Setup unique mqtt id and mqtt topic string
   create_unique_mqtt_topic_string(app_config.mqtt_topic);
@@ -296,12 +297,13 @@ Version :      DMK, Initial code
   }
   
   //
-  //Serial.begin(9600, SERIAL_7E1);
-  Serial.begin(115200, SERIAL_8N1);
+  Serial.begin(9600, SERIAL_7E1);
+  //Serial.begin(115200, SERIAL_8N1);
   Serial.println("Let's rock and swap() serial ...");
   
   #ifdef DEBUG
-  Serial1.begin(115200, SERIAL_8N1);
+  Serial.begin(9600, SERIAL_7E1);
+  //Serial1.begin(115200, SERIAL_8N1);
   Serial1.printf("\n\r... in debug mode ...\n\r");
   #endif
 
@@ -432,7 +434,7 @@ Version :   DMK, Initial code
 *******************************************************************/
 {
    char tmp[30];
-   strcpy(topic_string,"BFD01");
+   strcpy(topic_string,"EMON19V01");
    sprintf(tmp,"-%06X",ESP.getChipId());
    strcat(topic_string,tmp);
    sprintf(tmp,"-%06X",ESP.getFlashChipId()); 
