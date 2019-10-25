@@ -297,13 +297,13 @@ Version :      DMK, Initial code
   }
   
   //
-  Serial.begin(9600, SERIAL_7E1);
-  //Serial.begin(115200, SERIAL_8N1);
+  //Serial.begin(9600, SERIAL_7E1);
+  Serial.begin(115200, SERIAL_8N1);
   Serial.println("Let's rock and swap() serial ...");
   
   #ifdef DEBUG
-  Serial.begin(9600, SERIAL_7E1);
-  //Serial1.begin(115200, SERIAL_8N1);
+  //Serial.begin(9600, SERIAL_7E1);
+  Serial1.begin(115200, SERIAL_8N1);
   Serial1.printf("\n\r... in debug mode ...\n\r");
   #endif
 
