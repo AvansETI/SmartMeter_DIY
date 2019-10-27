@@ -86,6 +86,8 @@ bool shouldSaveConfig;
 #define MQTT_TOPIC_STRING_LENGTH   64
 #define MQTT_REMOTE_HOST_LENGTH   128
 #define MQTT_REMOTE_PORT_LENGTH    10
+#define P1_BAUDRATE_LENGTH         10
+
 
 typedef struct {
    char     mqtt_username[MQTT_USERNAME_LENGTH];
@@ -93,7 +95,8 @@ typedef struct {
    char     mqtt_id[MQTT_ID_TOKEN_LENGTH];
    char     mqtt_topic[MQTT_TOPIC_STRING_LENGTH];
    char     mqtt_remote_host[MQTT_REMOTE_HOST_LENGTH];
-   char     mqtt_remote_port[MQTT_REMOTE_HOST_LENGTH];
+   char     mqtt_remote_port[MQTT_REMOTE_PORT_LENGTH];
+   char     p1_baudrate[P1_BAUDRATE_LENGTH];
 } APP_CONFIG_STRUCT;
 
 APP_CONFIG_STRUCT app_config;
@@ -247,6 +250,7 @@ Version :      DMK, Initial code
     strcpy(app_config.mqtt_password, "se_smartmeter");
     strcpy(app_config.mqtt_remote_host, "sendlab.avansti.nl");
     strcpy(app_config.mqtt_remote_port, "11883");
+    strcpy(app_config.p1_baudrate, "115200");
     writeAppConfig(&app_config);
   }
 
@@ -262,10 +266,14 @@ Version :      DMK, Initial code
   WiFiManagerParameter custom_mqtt_password("mqtt_password", "Password", app_config.mqtt_password, MQTT_PASSWORD_LENGTH);
   WiFiManagerParameter custom_mqtt_remote_host("mqtt_remote_host", "Host", app_config.mqtt_remote_host, MQTT_REMOTE_HOST_LENGTH);
   WiFiManagerParameter custom_mqtt_remote_port("mqtt_port", "Port", app_config.mqtt_remote_port, MQTT_REMOTE_PORT_LENGTH);
+  WiFiManagerParameter custom_p1_baudrate("P1 port speed", "Baudrate", app_config.p1_baudrate, P1_BAUDRATE_LENGTH);
+
   wifiManager.addParameter(&custom_mqtt_username);
   wifiManager.addParameter(&custom_mqtt_password);
   wifiManager.addParameter(&custom_mqtt_remote_host);
   wifiManager.addParameter(&custom_mqtt_remote_port);
+  wifiManager.addParameter(&custom_p1_baudrate);
+  
 
   // Add the unit ID to the webpage
   char fd_str[128]="<p>Your EMON ID: <b>";
@@ -287,6 +295,7 @@ Version :      DMK, Initial code
     strcpy(app_config.mqtt_password, custom_mqtt_password.getValue());
     strcpy(app_config.mqtt_remote_host, custom_mqtt_remote_host.getValue());
     strcpy(app_config.mqtt_remote_port, custom_mqtt_remote_port.getValue());
+    strcpy(app_config.p1_baudrate, custom_p1_baudrate.getValue());
     writeAppConfig(&app_config);
   }
    
@@ -295,17 +304,40 @@ Version :      DMK, Initial code
   } else {
     MDNS.addService("diy_emon_v10", "tcp", 10000);
   }
+
+  uint16_t baudrate = atoi(app_config.p1_baudrate);
+  
+  switch(baudrate){
+
+    case 9600:
+      Serial.begin(9600, SERIAL_7E1);
+      Serial.println("Let's rock and swap() serial ...");
+      #ifdef DEBUG
+      Serial.begin(9600, SERIAL_7E1);
+      Serial1.printf("\n\r... in debug mode ...\n\r");
+      #endif
+      break;
+
+    default:
+      Serial.begin(115200, SERIAL_8N1);
+      Serial.println("Let's rock and swap() serial ...");
+      #ifdef DEBUG
+      Serial1.begin(115200, SERIAL_8N1);
+      Serial1.printf("\n\r... in debug mode ...\n\r");
+      #endif
+      break;
+  }
   
   //
   //Serial.begin(9600, SERIAL_7E1);
-  Serial.begin(115200, SERIAL_8N1);
-  Serial.println("Let's rock and swap() serial ...");
+//  Serial.begin(115200, SERIAL_8N1);
+//  Serial.println("Let's rock and swap() serial ...");
   
-  #ifdef DEBUG
-  //Serial.begin(9600, SERIAL_7E1);
-  Serial1.begin(115200, SERIAL_8N1);
-  Serial1.printf("\n\r... in debug mode ...\n\r");
-  #endif
+//  #ifdef DEBUG
+//  //Serial.begin(9600, SERIAL_7E1);
+//  Serial1.begin(115200, SERIAL_8N1);
+//  Serial1.printf("\n\r... in debug mode ...\n\r");
+//  #endif
 
   // Allow bootloader to connect: do not remove!
   delay(3000);
@@ -498,6 +530,8 @@ Version :      DMK, Initial code
                strcpy(app_config->mqtt_password, json["MQTT_PASSWORD"]);
                strcpy(app_config->mqtt_remote_host, json["MQTT_HOST"]);
                strcpy(app_config->mqtt_remote_port, json["MQTT_PORT"]);
+               strcpy(app_config->p1_baudrate, json["P1_BAUDRATE"]);
+
                retval = true;
             }
          }
@@ -530,6 +564,7 @@ Version :      DMK, Initial code
       doc["MQTT_PASSWORD"] = app_config->mqtt_password;
       doc["MQTT_HOST"] = app_config->mqtt_remote_host;
       doc["MQTT_PORT"] = app_config->mqtt_remote_port;
+      doc["P1_BAUDRATE"]= app_config->p1_baudrate;
 
       File file = SPIFFS.open("/config.json","w");
       if( file ) {
