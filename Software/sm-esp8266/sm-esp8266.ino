@@ -3,7 +3,8 @@
 
   See  for more information.
 
-  Initial: dkroeske(dkroeske@gmail.com), august 2019
+  V1.0: Initial: dkroeske(dkroeske@gmail.com), august 2019
+  V1.1: Reroute pinning PCB, updated bootsequence
 
   Happy Coding
   
@@ -44,11 +45,6 @@
 #include <PubSubClient.h>
 // MAKE SURE: in PubSubClient.h change MQTT_MAX_PACKET_SIZE to 2048 !! //
 
-//
-// situation | Mode
-// ----------|-----
-// Normal    | GPIO2 is used to control the NeoPixel
-// Debug     | GPIO2 is connected to Serial1 to print debug messages
 #define DEBUG
 
 #ifdef DEBUG
@@ -70,12 +66,12 @@
 // D8     GPIO15      Boot mode, must be LOW during flash boot
 // A0             Analog
 
-// WiFi RESET pin
 #define RST_PIN         D2  // Wemos D2 (GPIO4)
 #define RGB_R_PIN       D6  // Wemos D6 (GPIO12)
 #define RGB_G_PIN       D1  // Wemos D1 (GPIO5)
 #define RGB_B_PIN       D5  // Wemos D5 (GPIO14)
 
+// Minimun delay between mqtt publish events. Prevents mqtt spam e.g. DSMR 5.0 updates every second!
 #define MQTT_TOPIC_UPDATE_RATE_MS  20000
 
 // Local variables
