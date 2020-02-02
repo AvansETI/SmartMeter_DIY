@@ -57,11 +57,24 @@
  #define DEBUG_PRINTF
 #endif
 
+//
+// WeMos  ESP8266 Use Warning
+// D0     GPIO16
+// D1     GPIO5   SCL
+// D2     GPIO4   SDA
+// D3     GPIO0       Must be PULLED HIGH during boot (Pulled up on WeMos board)
+// D4     GPIO2       Must be PULLED HIGH during boot (Pulled up on WeMos board)
+// D5     GPIO14  SCL
+// D6     GPIO12  MISO  
+// D7     GPIO13
+// D8     GPIO15      Boot mode, must be LOW during flash boot
+// A0             Analog
+
 // WiFi RESET pin
-#define RST_PIN         D4  // Wemos D4
-#define RGB_R_PIN       D8  // Wemos D8
-#define RGB_G_PIN       D1  // Wemos D1
-#define RGB_B_PIN       D5  // Wemos D5
+#define RST_PIN         D2  // Wemos D2 (GPIO4)
+#define RGB_R_PIN       D6  // Wemos D6 (GPIO12)
+#define RGB_G_PIN       D1  // Wemos D1 (GPIO5)
+#define RGB_B_PIN       D5  // Wemos D5 (GPIO14)
 
 #define MQTT_TOPIC_UPDATE_RATE_MS  20000
 
@@ -211,18 +224,13 @@ Version :      DMK, Initial code
 *******************************************************************/
 {    
   // Define I/O and attach ISR
-  pinMode(RST_PIN, INPUT);      // Reset
-  pinMode(RGB_R_PIN, OUTPUT);   // Red RGB led
-  pinMode(RGB_G_PIN, OUTPUT);   // Green RGB led
-  pinMode(RGB_B_PIN, OUTPUT);   // Blue RGB led
+  pinMode(RST_PIN, INPUT_PULLUP); // Reset - Use internal pullup
+  pinMode(RGB_R_PIN, OUTPUT);     // Red RGB led
+  pinMode(RGB_G_PIN, OUTPUT);     // Green RGB led
+  pinMode(RGB_B_PIN, OUTPUT);     // Blue RGB led
   
   // Init with red led
   smartLedInit();
-  for(int idx = 0; idx < 25; idx++ ) {
-    smartLedFlash(BLUE);
-    delay(100);
-  }
-  delay(2000);
 
   // Setup unique mqtt id and mqtt topic string
   create_unique_mqtt_topic_string(app_config.mqtt_topic);
@@ -235,13 +243,14 @@ Version :      DMK, Initial code
       wifiManager.resetSettings();
       deleteAppConfig();
       while(0 == digitalRead(RST_PIN)) {
-         smartLedFlash(BLUE);
-         delay(2000);
+         smartLedFlash(RED);
+         delay(250);
       }
       ESP.reset();
    }
 
-  //
+  // Blue led on. Will go GREEN if WiFi network is available or 
+  // stays BLUE when WiFi credentials are needed.
   smartLedColor(BLUE, ON);
   
   // Read config file or generate default
@@ -327,18 +336,7 @@ Version :      DMK, Initial code
       #endif
       break;
   }
-  
-  //
-  //Serial.begin(9600, SERIAL_7E1);
-//  Serial.begin(115200, SERIAL_8N1);
-//  Serial.println("Let's rock and swap() serial ...");
-  
-//  #ifdef DEBUG
-//  //Serial.begin(9600, SERIAL_7E1);
-//  Serial1.begin(115200, SERIAL_8N1);
-//  Serial1.printf("\n\r... in debug mode ...\n\r");
-//  #endif
-
+ 
   // Allow bootloader to connect: do not remove!
   delay(3000);
   
