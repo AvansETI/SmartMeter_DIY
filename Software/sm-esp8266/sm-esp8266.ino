@@ -5,6 +5,7 @@
 
   V1.0: Initial: dkroeske(dkroeske@gmail.com), august 2019
   V1.1: Reroute pinning PCB, updated bootsequence
+  V1.2: Updated to latest version ArduinoJson library (feb 2020)
 
   Happy Coding
   
@@ -42,7 +43,7 @@
 #include <FS.h>
 #include <Ticker.h>
 
-#include <PubSubClient.h>
+#include "PubSubClient.h"
 // MAKE SURE: in PubSubClient.h change MQTT_MAX_PACKET_SIZE to 2048 !! //
 
 #define DEBUG
@@ -228,27 +229,29 @@ Version :      DMK, Initial code
   // Init with red led
   smartLedInit();
 
+  // Say Hello to user
+  for(uint8_t idx = 0; idx < 2; idx++ ) {
+    smartLedFlash(BLUE);
+    delay(150);
+  }
+
   // Setup unique mqtt id and mqtt topic string
   create_unique_mqtt_topic_string(app_config.mqtt_topic);
   create_unigue_mqtt_id(app_config.mqtt_id);
   sprintf(mqtt_topic,"smartmeter/raw");
 
-   // Perform factory reset switches
-   // is pressed during powerup
-   if( 0 == digitalRead(RST_PIN) ) {
-      wifiManager.resetSettings();
-      deleteAppConfig();
-      while(0 == digitalRead(RST_PIN)) {
-         smartLedFlash(RED);
-         delay(250);
-      }
-      ESP.reset();
-   }
+  // Perform factory reset switches
+  // is pressed during powerup
+  if( 0 == digitalRead(RST_PIN) ) {
+    wifiManager.resetSettings();
+    deleteAppConfig();
+    while(0 == digitalRead(RST_PIN)) {
+       smartLedFlash(BLUE);
+       delay(250);
+    }
+    ESP.reset();
+  }
 
-  // Blue led on. Will go GREEN if WiFi network is available or 
-  // stays BLUE when WiFi credentials are needed.
-  smartLedColor(BLUE, ON);
-  
   // Read config file or generate default
   if( !readAppConfig(&app_config) ) {
     strcpy(app_config.mqtt_username, "smartmeter");
@@ -270,8 +273,8 @@ Version :      DMK, Initial code
   WiFiManagerParameter custom_mqtt_username("mqtt_username", "Username", app_config.mqtt_username, MQTT_USERNAME_LENGTH);
   WiFiManagerParameter custom_mqtt_password("mqtt_password", "Password", app_config.mqtt_password, MQTT_PASSWORD_LENGTH);
   WiFiManagerParameter custom_mqtt_remote_host("mqtt_remote_host", "Host", app_config.mqtt_remote_host, MQTT_REMOTE_HOST_LENGTH);
-  WiFiManagerParameter custom_mqtt_remote_port("mqtt_port", "Port", app_config.mqtt_remote_port, MQTT_REMOTE_PORT_LENGTH);
-  WiFiManagerParameter custom_p1_baudrate("P1 port speed", "Baudrate", app_config.p1_baudrate, P1_BAUDRATE_LENGTH);
+  WiFiManagerParameter custom_mqtt_remote_port("mqtt_remote_port", "Port", app_config.mqtt_remote_port, MQTT_REMOTE_PORT_LENGTH);
+  WiFiManagerParameter custom_p1_baudrate("p1_baudrate", "Baudrate", app_config.p1_baudrate, P1_BAUDRATE_LENGTH);
 
   wifiManager.addParameter(&custom_mqtt_username);
   wifiManager.addParameter(&custom_mqtt_password);
@@ -279,18 +282,21 @@ Version :      DMK, Initial code
   wifiManager.addParameter(&custom_mqtt_remote_port);
   wifiManager.addParameter(&custom_p1_baudrate);
   
-
   // Add the unit ID to the webpage
   char fd_str[128]="<p>Your EMON ID: <b>";
   strcat(fd_str, app_config.mqtt_topic);
   strcat(fd_str, "</b> Make a SCREENSHOT - you will need this info later!</p>");
   WiFiManagerParameter mqqt_topic_text(fd_str);
   wifiManager.addParameter(&mqqt_topic_text);
-   
+
+  // Blue led on. Will go GREEN if WiFi network is available or 
+  // stays BLUE when WiFi credentials are needed.
+  smartLedColor(BLUE, ON);
+  
   if( !wifiManager.autoConnect("ETI EMON config")) {
     delay(1000);
     ESP.reset();
-  }
+  }  
 
   //
   // Update config if needed
@@ -303,55 +309,62 @@ Version :      DMK, Initial code
     strcpy(app_config.p1_baudrate, custom_p1_baudrate.getValue());
     writeAppConfig(&app_config);
   }
-   
+
+  // Always print config to terminal before swapping serial port
+  Serial.begin(115200, SERIAL_8N1);
+
+  Serial.printf("\n");
+  Serial.printf("************ DIY Smartmeter KIT********************\n");
+  Serial.printf("ESP8266 info\n");
+  Serial.printf("\tSDK Version     : %s\n", ESP.getSdkVersion() );
+  Serial.printf("\tCore Version    : %s\n", ESP.getCoreVersion().c_str() );
+  Serial.printf("\tCore Frequency  : %d Mhz\n", ESP.getCpuFreqMHz());
+  Serial.printf("\tLast reset      : %s\n", ESP.getResetReason().c_str() );
+
+  Serial.printf("MQTT settings\n");
+  Serial.printf("\tmqtt_username   : %s\n", app_config.mqtt_username);
+  Serial.printf("\tmqtt_password   : %s\n", app_config.mqtt_password);
+  Serial.printf("\tmqtt_id         : %s\n", app_config.mqtt_id);
+  Serial.printf("\tmqtt_topic      : %s\n", mqtt_topic);
+  Serial.printf("\tmqtt_remote_host: %s\n", app_config.mqtt_remote_host);
+  Serial.printf("\tmqtt_remote_port: %s\n", app_config.mqtt_remote_port);
+
+  Serial.printf("DSMR settings\n");
+  Serial.printf("\tP1 Baudrate     : %s baud\n", app_config.p1_baudrate);
+
+  Serial.printf("***************************************************\n\n");
+
+  Serial.flush();
+
   //
-  if( !MDNS.begin("DIY-EMON_V10") ) {
+  if( !MDNS.begin("DIY-EMON_V12") ) {
   } else {
-    MDNS.addService("diy_emon_v10", "tcp", 10000);
+    MDNS.addService("diy_emon_v12", "tcp", 10000);
   }
 
-  uint16_t baudrate = atoi(app_config.p1_baudrate);
-  
+  // Set P1 port baudrate. DSMR V2 uses 9600 baud. Otherwise 115200 baud
+  long baudrate = atol(app_config.p1_baudrate);
   switch(baudrate){
-
     case 9600:
       Serial.begin(9600, SERIAL_7E1);
-      Serial.println("Let's rock and swap() serial ...");
-      #ifdef DEBUG
-      Serial.begin(9600, SERIAL_7E1);
-      Serial1.printf("\n\r... in debug mode ...\n\r");
-      #endif
       break;
 
     default:
       Serial.begin(115200, SERIAL_8N1);
-      Serial.println("Let's rock and swap() serial ...");
-      #ifdef DEBUG
-      Serial1.begin(115200, SERIAL_8N1);
-      Serial1.printf("\n\r... in debug mode ...\n\r");
-      #endif
       break;
   }
+
+  #ifdef DEBUG
+    Serial1.begin(115200, SERIAL_8N1);
+    DEBUG_PRINTF("\n\r%s\n\r", "Debug mode ON ..." );
+  #endif
  
   // Allow bootloader to connect: do not remove!
-  delay(3000);
+  delay(2000);
   
   // Relocate Serial Port
   Serial.swap();
   
-  // Debug
-  DEBUG_PRINTF("SDK Version: %s\n\r", ESP.getSdkVersion() );
-  DEBUG_PRINTF("CORE Version: %s\n\r", ESP.getCoreVersion().c_str() );
-  DEBUG_PRINTF("RESET: %s\n\r", ESP.getResetReason().c_str() );
-  DEBUG_PRINTF("%s","OAT ready\n");
-  DEBUG_PRINTF("mqtt_username: %s\n", app_config.mqtt_username);
-  DEBUG_PRINTF("mqtt_password: %s\n", app_config.mqtt_password);
-  DEBUG_PRINTF("mqtt_id: %s\n", app_config.mqtt_id);
-  DEBUG_PRINTF("mqtt_topic: %s\n", mqtt_topic);
-  DEBUG_PRINTF("mqtt_remote_host: %s\n", app_config.mqtt_remote_host);
-  DEBUG_PRINTF("mqtt_remote_port: %s\n", app_config.mqtt_remote_port);
-  DEBUG_PRINTF("%s:freq: %d Mhz\n\r", __FUNCTION__, ESP.getCpuFreqMHz());
-
   // Initialise FSM
   initFSM(STATE_START, EV_IDLE);
 }
@@ -503,35 +516,36 @@ notes:
 Version :      DMK, Initial code
 *******************************************************************/
 {
-   bool retval = false;
+  bool retval = false;
+  
+  if( SPIFFS.begin() ) {
+    if( SPIFFS.exists("/config.json") ) {
+       File configFile = SPIFFS.open("/config.json","r");
+       if( configFile ) {
 
-   if( SPIFFS.begin() ) {
-      if( SPIFFS.exists("/config.json") ) {
-         File file = SPIFFS.open("/config.json","r");
-         if( file ) {
-            size_t size = file.size();
-            std::unique_ptr<char[]> buf(new char[size]);
+          size_t size = configFile.size();
+          if (size > 1024) {
+            Serial.println("Config file size is too large");
+          }
 
-            file.readBytes(buf.get(), size);
-
-            //DynamicJsonBuffer jsonBuffer;
-            DynamicJsonDocument json(1024);
-            
-            //JsonObject& json = jsonBuffer.parseObject(buf.get());
-            DeserializationError error = deserializeJson(json, buf.get());
-            if( !error ) {
-               strcpy(app_config->mqtt_username, json["MQTT_USERNAME"]);
-               strcpy(app_config->mqtt_password, json["MQTT_PASSWORD"]);
-               strcpy(app_config->mqtt_remote_host, json["MQTT_HOST"]);
-               strcpy(app_config->mqtt_remote_port, json["MQTT_PORT"]);
-               strcpy(app_config->p1_baudrate, json["P1_BAUDRATE"]);
-
-               retval = true;
-            }
-         }
-      }
-   } 
-   return retval;
+          std::unique_ptr<char[]> buf(new char[size]);
+          configFile.readBytes(buf.get(), size);
+        
+          StaticJsonDocument<512> doc;
+          DeserializationError error = deserializeJson(doc, buf.get());
+          
+          if( error == DeserializationError::Ok ) {
+             strcpy(app_config->mqtt_username, doc["MQTT_USERNAME"]);
+             strcpy(app_config->mqtt_password, doc["MQTT_PASSWORD"]);
+             strcpy(app_config->mqtt_remote_host, doc["MQTT_HOST"]);
+             strcpy(app_config->mqtt_remote_port, doc["MQTT_PORT"]);
+             strcpy(app_config->p1_baudrate, doc["P1_BAUDRATE"]);
+             retval = true;
+          }
+       }
+    }
+  }  
+  return retval;
 }
 
 /******************************************************************/
@@ -544,36 +558,28 @@ notes:
 Version :      DMK, Initial code
 *******************************************************************/
 {
-   bool retval = false;
+  bool retval = false;
 
-  if( SPIFFS.begin() ) {
-      
-      // Delete config if exists
-      if( SPIFFS.exists("/config.json") ) {
-         SPIFFS.remove("/config.json");
-      }
+  deleteAppConfig(); // Delete config file if exists
 
-      DynamicJsonDocument doc(1024);
-      doc["MQTT_USERNAME"] = app_config->mqtt_username;
-      doc["MQTT_PASSWORD"] = app_config->mqtt_password;
-      doc["MQTT_HOST"] = app_config->mqtt_remote_host;
-      doc["MQTT_PORT"] = app_config->mqtt_remote_port;
-      doc["P1_BAUDRATE"]= app_config->p1_baudrate;
-
-      File file = SPIFFS.open("/config.json","w");
-      if( file ) {
-         //serializeJson(doc, file);
-         serializeJson(doc, Serial);
-
-         file.close();
-         retval = true;
-      }
-   } 
-   return retval;
+  StaticJsonDocument<512> doc;
+  doc["MQTT_USERNAME"] = app_config->mqtt_username;
+  doc["MQTT_PASSWORD"] = app_config->mqtt_password;
+  doc["MQTT_HOST"] = app_config->mqtt_remote_host;
+  doc["MQTT_PORT"] = app_config->mqtt_remote_port;
+  doc["P1_BAUDRATE"]= app_config->p1_baudrate;
+  
+  File configFile = SPIFFS.open("/config.json","w+");
+  if( configFile ) {
+     serializeJson(doc, configFile);
+     configFile.close();
+     retval = true;
+  }    
+  return retval;
 }
 
 /******************************************************************/
-void deleteAppConfig() 
+boolean deleteAppConfig() 
 /* 
 short:         Erase config to FFS
 inputs:        
@@ -582,13 +588,15 @@ notes:
 Version :      DMK, Initial code
 *******************************************************************/
 {
-   if( SPIFFS.begin() ) {
-      
-      // Delete config if exists
-      if( SPIFFS.exists("/config.json") ) {
-         SPIFFS.remove("/config.json");
+  boolean retval = false;
+  if( SPIFFS.begin() ) {
+    if( SPIFFS.exists("/config.json") ) {
+      if( SPIFFS.remove("/config.json") ) {
+        retval = true;
       }
-   } 
+    }
+  } 
+  return retval;
 }
 
 /******************************************************************/
