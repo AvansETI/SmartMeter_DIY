@@ -9,8 +9,8 @@
 
   Installation Arduino IDE:
   - How to get the Wemos installed in the Ardiuno IDE: https://siytek.com/wemos-d1-mini-arduino-wifi/
-  - Install WiFiManager by tablatronics: https://github.com/tzapu/WiFiManager
-  - Install JsonArduino by Banoit Blanchon: https://arduinojson.org/?utm_source=meta&utm_medium=library.properties
+  - Install library WiFiManager by tablatronics: https://github.com/tzapu/WiFiManager
+  - Install library JsonArduino by Banoit Blanchon: https://arduinojson.org/?utm_source=meta&utm_medium=library.properties
 
   Happy Coding
   
