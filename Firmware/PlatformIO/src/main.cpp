@@ -48,7 +48,7 @@
 #include <FS.h>
 #include <Ticker.h>
 
-#include "PubSubClient.h"
+#include "pubsubclient.h"
 // MAKE SURE: in PubSubClient.h change MQTT_MAX_PACKET_SIZE to 2048 !! //
 
 #define DEBUG
@@ -70,7 +70,7 @@
 // D6     GPIO12  MISO  
 // D7     GPIO13
 // D8     GPIO15      Boot mode, must be LOW during flash boot
-// A0             Analog
+// A0     Analog
 
 #define RST_PIN         D2  // Wemos D2 (GPIO4)
 #define RGB_R_PIN       D6  // Wemos D6 (GPIO12)
@@ -81,7 +81,6 @@
 #define MQTT_TOPIC_UPDATE_RATE_MS  20000
 
 // Local variables
-uint32_t cur=0, prev=0;
 WiFiManager wifiManager;
 
 typedef enum {
@@ -200,6 +199,23 @@ MEASUREMENT_STRUCT payload = {""};
 // mqtt topic strings: eti-sm
 char mqtt_topic[128];
 
+void raiseEvent(ENUM_EVENT new_event);
+void initFSM(ENUM_STATE new_state, ENUM_EVENT new_event);
+void smartLedInit();
+void smartLedFlash(RGB_COLOR_ENUM color);
+void smartLedColor(RGB_COLOR_ENUM color, RGB_STATE_ENUM state);
+bool capture_p1();
+void p1_reset();
+void p1_store(char ch);
+bool deleteAppConfig();
+bool writeAppConfig(APP_CONFIG_STRUCT *app_config);
+bool readAppConfig(APP_CONFIG_STRUCT *app_config);
+void create_unigue_mqtt_id(char *signature);
+void create_unique_mqtt_topic_string(char *topic_string);
+void mqtt_connect();
+void mqtt_callback(char *topic, byte *payload, unsigned int length);
+void saveConfigCallback();
+void sim_callback();
 
 /******************************************************************/
 void saveConfigCallback () 
@@ -584,7 +600,7 @@ Version :      DMK, Initial code
 }
 
 /******************************************************************/
-boolean deleteAppConfig() 
+bool deleteAppConfig() 
 /* 
 short:         Erase config to FFS
 inputs:        
@@ -593,7 +609,7 @@ notes:
 Version :      DMK, Initial code
 *******************************************************************/
 {
-  boolean retval = false;
+  bool retval = false;
   if( SPIFFS.begin() ) {
     if( SPIFFS.exists("/config.json") ) {
       if( SPIFFS.remove("/config.json") ) {
