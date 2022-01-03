@@ -16,7 +16,3 @@ libraries:
 when you are finished, you can compile and upload the sketch. In the case, you like more functionality
 you can create the software yourself. We appreciate contribution by pull requests! You can become
 part of the project as well.
-
-## Some notes
-
-Make sure you use the newest version if you create your own version.
