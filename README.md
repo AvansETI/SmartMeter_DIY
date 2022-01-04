@@ -7,8 +7,6 @@ Bij het Expertisecentrum Technische Innovatie (ETI) van Avans Hogeschool te Bred
 
 Het doel van dit alles is informatie uit veel aangesloten slimme meters te verzamelen. Deze informatie kan dan worden gebruikt in onderzoek en onderwijs. Alle verzamelde informatie is heel, heel moeilijk herleidbaar tot personen en/of locaties, hierover later meer. Alle verzamelde informatie is openbaar.
 
-Avans Hogeschool en ETI nodigen iedereen uit om mee te doen in dit experiment. Voor de [bouwhandleiding](https://github.com/AvansETI/SmartMeter_DIY/wiki/Bouwhandleiding-(v2.1)) klik [hier](https://github.com/AvansETI/SmartMeter_DIY/wiki/Bouwhandleiding-(v2.1)).
-
 * Homepage: [https://github.com/AvansETI/SmartMeter_DIY/wiki](https://github.com/AvansETI/SmartMeter_DIY/wiki)
 * Source: [https://github.com/AvansETI/SmartMeter_DIY](https://github.com/AvansETI/SmartMeter_DIY)
 * Twitter: [@eti](https://twitter.com/DIY-SMARTMETER-KIT)
