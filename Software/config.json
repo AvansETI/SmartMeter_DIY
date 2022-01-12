@@ -1,0 +1,19 @@
+{
+  "mqtt" : {
+    "host" : "coolsmabox.synology.me",
+    "port": 11883,
+    "topic": "smartmeter/raw",
+    "username" : "emon",
+    "password" : "fWDbVx2a6MFWMfzv"
+  },
+  "logger" : {
+    "update_rate": 10
+  },
+  "influxdb" : {
+    "org": "",
+    "bucket": "dsmr_kit_test",
+    "token": "",
+    "host": "",
+    "port": 8086
+  }
+}
