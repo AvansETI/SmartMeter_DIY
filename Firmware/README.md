@@ -12,11 +12,11 @@ https://siytek.com/wemos-d1-mini-arduino-wifi/. Furthermore, you need to install
 libraries:
 - Install library WiFiManager by tablatronics: https://github.com/tzapu/WiFiManager
 - Install library JsonArduino by Banoit Blanchon: https://arduinojson.org/?utm_source=meta&utm_medium=library.properties
+- Install library pubsubclient by Nick O'Leary: https://github.com/knolleary/pubsubclient
 
 when you are finished, you can compile and upload the sketch. In the case, you like more functionality
 you can create the software yourself. We appreciate contribution by pull requests! You can become
 part of the project as well.
 
-## PlatformIO
+This project is last updated in january 2022
 
-This software is created using the PlatformIO module of Visual Studio code. It is the same as the sketch above, but in another environment. It depends on what you prefer to use.

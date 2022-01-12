@@ -6,11 +6,7 @@
   V1.0: Initial: dkroeske(dkroeske@gmail.com), august 2019
   V1.1: Reroute pinning PCB, updated bootsequence
   V1.2: Updated to latest version ArduinoJson library (feb 2020)
-
-  Installation Arduino IDE:
-  - How to get the Wemos installed in the Ardiuno IDE: https://siytek.com/wemos-d1-mini-arduino-wifi/
-  - Install library WiFiManager by tablatronics: https://github.com/tzapu/WiFiManager
-  - Install library JsonArduino by Banoit Blanchon: https://arduinojson.org/?utm_source=meta&utm_medium=library.properties
+  V1.3: Updated to latest PubSubClient (jan 2021)
 
   Happy Coding
   
@@ -49,7 +45,10 @@
 #include <Ticker.h>
 
 #include "PubSubClient.h"
-// MAKE SURE: in PubSubClient.h change MQTT_MAX_PACKET_SIZE to 2048 !! //
+// FIXED in Library: No actions needed. Old mgs: 'MAKE SURE: in PubSubClient.h change MQTT_MAX_PACKET_SIZE to 2048 !!'
+
+// Homeserver credentials
+#include "MqttSendlab.h"
 
 #define DEBUG
 
@@ -70,7 +69,7 @@
 // D6     GPIO12  MISO  
 // D7     GPIO13
 // D8     GPIO15      Boot mode, must be LOW during flash boot
-// A0     Analog
+// A0             Analog
 
 #define RST_PIN         D2  // Wemos D2 (GPIO4)
 #define RGB_R_PIN       D6  // Wemos D6 (GPIO12)
@@ -81,6 +80,7 @@
 #define MQTT_TOPIC_UPDATE_RATE_MS  20000
 
 // Local variables
+uint32_t cur=0, prev=0;
 WiFiManager wifiManager;
 
 typedef enum {
@@ -120,10 +120,10 @@ WiFiClient wifiClient;
 // Only with some dummy values seems to work ... instead of mqttClient();
 PubSubClient mqttClient("", 0, wifiClient);
 
-#define P1_TELEGRAM_SIZE   1024
+#define P1_TELEGRAM_SIZE   2048
 
 // Datagram P1 buffer 
-#define P1_MAX_DATAGRAM_SIZE 1024
+#define P1_MAX_DATAGRAM_SIZE 2048
 char p1_buf[P1_MAX_DATAGRAM_SIZE]; // Complete P1 telegram
 char *p1;
 
@@ -242,7 +242,7 @@ Version :      DMK, Initial code
   // Setup unique mqtt id and mqtt topic string
   create_unique_mqtt_topic_string(app_config.mqtt_topic);
   create_unigue_mqtt_id(app_config.mqtt_id);
-  sprintf(mqtt_topic,"smartmeter/raw");
+  sprintf(mqtt_topic, MQTT_TOPIC);
 
   // Perform factory reset switches
   // is pressed during powerup
@@ -258,10 +258,10 @@ Version :      DMK, Initial code
 
   // Read config file or generate default
   if( !readAppConfig(&app_config) ) {
-    strcpy(app_config.mqtt_username, "smartmeter");
-    strcpy(app_config.mqtt_password, "se_smartmeter");
-    strcpy(app_config.mqtt_remote_host, "sendlab.avansti.nl");
-    strcpy(app_config.mqtt_remote_port, "11883");
+    strcpy(app_config.mqtt_username, MQTT_USERNAME);
+    strcpy(app_config.mqtt_password, MQTT_PASSWORD);
+    strcpy(app_config.mqtt_remote_host, MQTT_REMOTE_HOST);
+    strcpy(app_config.mqtt_remote_port, MQTT_REMOTE_PORT);
     strcpy(app_config.p1_baudrate, "115200");
     writeAppConfig(&app_config);
   }
@@ -341,9 +341,9 @@ Version :      DMK, Initial code
   Serial.flush();
 
   //
-  if( !MDNS.begin("DIY-EMON_V12") ) {
+  if( !MDNS.begin("DIY-EMON_V13") ) {
   } else {
-    MDNS.addService("diy_emon_v12", "tcp", 10000);
+    MDNS.addService("diy_emon_v13", "tcp", 10000);
   }
 
   // Set P1 port baudrate. DSMR V2 uses 9600 baud. Otherwise 115200 baud
@@ -453,6 +453,7 @@ Version :   DMK, Initial code
   
   mqttClient.setClient(wifiClient);
   mqttClient.setServer(host, port );
+  mqttClient.setBufferSize(MQTT_MSGBUF_SIZE);
   if(mqttClient.connect(app_config.mqtt_id, app_config.mqtt_username, app_config.mqtt_password)){
 
     // Subscribe to mqtt topic
@@ -657,7 +658,6 @@ Version :      DMK, Initial code
       while( Serial.available() ) { 
          char ch = Serial.read();
          switch(p1_msg_state) {
-            
             //
             case P1_MSG_S0:
                if( ch == '/' ) {
