@@ -78,7 +78,7 @@ class MQTT(object):
             record = ("dsmr,signature={} "
                       "power_produced={:.4f},power_consumed={:.4f},"
                       "energy_produced={:.4f},energy_consumed={:.4f},"
-                      "gas={:.4f}").format(
+                      "gas_delivered={:.4f}").format(
                     emon.signature,
                     emon.power_produced, emon.power_consumed,
                     emon.energy_produced, emon.energy_consumed,
