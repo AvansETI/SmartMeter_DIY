@@ -13,7 +13,8 @@
   - How to get the Wemos installed in the Ardiuno IDE: https://siytek.com/wemos-d1-mini-arduino-wifi/
   - Install library WiFiManager by tablatronics: https://github.com/tzapu/WiFiManager
   - Install library JsonArduino by Banoit Blanchon: https://arduinojson.org/?utm_source=meta&utm_medium=library.properties
-
+  - Install library knolleary/PubSubClient by Nick O'Leary: https://github.com/knolleary/pubsubclient
+ 
   Happy Coding
   
   -------------------------------------------------------------------------
@@ -346,10 +347,10 @@ Version :      DMK, Initial code
 
   Serial.flush();
 
-  //
-  if( !MDNS.begin("DIY-EMON_V13") ) {
+  // mDNS Service
+  if( !MDNS.begin("DIY-EMON_V14") ) {
   } else {
-    MDNS.addService("diy_emon_v13", "tcp", 10000);
+    MDNS.addService("diy_emon_v14", "tcp", 10000);
   }
 
   // Set P1 port baudrate. DSMR V2 uses 9600 baud. Otherwise 115200 baud
@@ -395,6 +396,7 @@ Version :      DMK, Initial code
 
     // Handle mqtt
     if( !mqttClient.connected() ) {
+      smartLedFlash(RED); // Added to see when MQTT is not connected
       mqtt_connect();
       delay(250);
     } else {
@@ -892,7 +894,7 @@ void mqtt_pre(void){
 void mqtt_heartbeat(void){
   DEBUG_PRINTF("%s:\n\r", __FUNCTION__);
 
-  // Throttle mqqt topic speed: check if previous send MQTT
+  // Throttle mqtt topic speed: check if previous send MQTT
   // is at least MQTT_TOPIC_UPDATE_RATE_MS seconds ago
   //
   uint32_t mqtt_throttle_cur = millis();
@@ -911,6 +913,7 @@ void mqtt_heartbeat(void){
 
     datagram["signature"] = app_config.mqtt_id;
 
+    // MS: Why are these values inserted in here? Can these be removed?
     JsonObject s0 = datagram.createNestedObject("s0");
     s0["unit"] = "W";
     s0["label"] = "e-car charger";

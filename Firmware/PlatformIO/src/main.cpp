@@ -6,14 +6,15 @@
   V1.0: Initial: dkroeske(dkroeske@gmail.com), august 2019
   V1.1: Reroute pinning PCB, updated bootsequence
   V1.2: Updated to latest version ArduinoJson library (feb 2020)
-  V1.3: Updated to latest PubSubClient (jan 2021) -- TODO
+  V1.3: Updated to latest PubSubClient (jan 2021)
   V1.4: Changed server location (sendlab.nl), removed credentials
 
   Installation Arduino IDE:
   - How to get the Wemos installed in the Ardiuno IDE: https://siytek.com/wemos-d1-mini-arduino-wifi/
-  - Install library WiFiManager by tablatronics: https://github.com/tzapu/WiFiManager
-  - Install library JsonArduino by Banoit Blanchon: https://arduinojson.org/?utm_source=meta&utm_medium=library.properties
-
+  - Install library tzapu/WiFiManager by tablatronics: https://github.com/tzapu/WiFiManager
+  - Install library bblanchon/JsonArduino by Banoit Blanchon: https://arduinojson.org/?utm_source=meta&utm_medium=library.properties
+  - Install library knolleary/PubSubClient by Nick O'Leary: https://github.com/knolleary/pubsubclient
+ 
   Happy Coding
   
   -------------------------------------------------------------------------
@@ -50,8 +51,11 @@
 #include <FS.h>
 #include <Ticker.h>
 
-#include "pubsubclient.h"
-// MAKE SURE: in PubSubClient.h change MQTT_MAX_PACKET_SIZE to 2048 !! //
+#include "PubSubClient.h"
+// FIXED in Library: No actions needed. Old mgs: 'MAKE SURE: in PubSubClient.h change MQTT_MAX_PACKET_SIZE to 2048 !!'
+
+// Homeserver credentials
+#include "MqttSendlab.h"
 
 #define DEBUG
 
@@ -122,10 +126,10 @@ WiFiClient wifiClient;
 // Only with some dummy values seems to work ... instead of mqttClient();
 PubSubClient mqttClient("", 0, wifiClient);
 
-#define P1_TELEGRAM_SIZE   1024
+#define P1_TELEGRAM_SIZE   2048
 
 // Datagram P1 buffer 
-#define P1_MAX_DATAGRAM_SIZE 1024
+#define P1_MAX_DATAGRAM_SIZE 2048
 char p1_buf[P1_MAX_DATAGRAM_SIZE]; // Complete P1 telegram
 char *p1;
 
@@ -201,6 +205,7 @@ MEASUREMENT_STRUCT payload = {""};
 // mqtt topic strings: eti-sm
 char mqtt_topic[128];
 
+// forward declaration
 void raiseEvent(ENUM_EVENT new_event);
 void initFSM(ENUM_STATE new_state, ENUM_EVENT new_event);
 void smartLedInit();
@@ -261,7 +266,7 @@ Version :      DMK, Initial code
   // Setup unique mqtt id and mqtt topic string
   create_unique_mqtt_topic_string(app_config.mqtt_topic);
   create_unigue_mqtt_id(app_config.mqtt_id);
-  sprintf(mqtt_topic,"smartmeter/raw");
+  sprintf(mqtt_topic,MQTT_TOPIC);
 
   // Perform factory reset switches
   // is pressed during powerup
@@ -359,10 +364,10 @@ Version :      DMK, Initial code
 
   Serial.flush();
 
-  //
-  if( !MDNS.begin("DIY-EMON_V12") ) {
+  // mDNS Service
+  if( !MDNS.begin("DIY-EMON_V14") ) {
   } else {
-    MDNS.addService("diy_emon_v12", "tcp", 10000);
+    MDNS.addService("diy_emon_v14", "tcp", 10000);
   }
 
   // Set P1 port baudrate. DSMR V2 uses 9600 baud. Otherwise 115200 baud
@@ -408,6 +413,7 @@ Version :      DMK, Initial code
 
     // Handle mqtt
     if( !mqttClient.connected() ) {
+      smartLedFlash(RED); // Added to see when MQTT is not connected
       mqtt_connect();
       delay(250);
     } else {
@@ -472,6 +478,7 @@ Version :   DMK, Initial code
   
   mqttClient.setClient(wifiClient);
   mqttClient.setServer(host, port );
+  mqttClient.setBufferSize(MQTT_MSGBUF_SIZE);
   if(mqttClient.connect(app_config.mqtt_id, app_config.mqtt_username, app_config.mqtt_password)){
 
     // Subscribe to mqtt topic
@@ -905,7 +912,7 @@ void mqtt_pre(void){
 void mqtt_heartbeat(void){
   DEBUG_PRINTF("%s:\n\r", __FUNCTION__);
 
-  // Throttle mqqt topic speed: check if previous send MQTT
+  // Throttle mqtt topic speed: check if previous send MQTT
   // is at least MQTT_TOPIC_UPDATE_RATE_MS seconds ago
   //
   uint32_t mqtt_throttle_cur = millis();
@@ -924,15 +931,16 @@ void mqtt_heartbeat(void){
 
     datagram["signature"] = app_config.mqtt_id;
 
-    JsonObject s0 = datagram.createNestedObject("s0");
-    s0["unit"] = "W";
-    s0["label"] = "e-car charger";
-    s0["value"] = 0;
+    // MS: Why are these values inserted in here? Can these be removed?
+    //JsonObject s0 = datagram.createNestedObject("s0");
+    //s0["unit"] = "W";
+    //s0["label"] = "e-car charger";
+    //s0["value"] = 0;
     
-    JsonObject s1 = datagram.createNestedObject("s1");
-    s1["unit"] = "W";
-    s1["label"] = "solar panels";
-    s1["value"] = 0;
+    //JsonObject s1 = datagram.createNestedObject("s1");
+    //s1["unit"] = "W";
+    //s1["label"] = "solar panels";
+    //s1["value"] = 0;
     
     String payload = "";
     serializeJson(doc, payload);
