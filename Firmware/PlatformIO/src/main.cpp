@@ -6,6 +6,8 @@
   V1.0: Initial: dkroeske(dkroeske@gmail.com), august 2019
   V1.1: Reroute pinning PCB, updated bootsequence
   V1.2: Updated to latest version ArduinoJson library (feb 2020)
+  V1.3: Updated to latest PubSubClient (jan 2021) -- TODO
+  V1.4: Changed server location (sendlab.nl), removed credentials
 
   Installation Arduino IDE:
   - How to get the Wemos installed in the Ardiuno IDE: https://siytek.com/wemos-d1-mini-arduino-wifi/
@@ -275,10 +277,10 @@ Version :      DMK, Initial code
 
   // Read config file or generate default
   if( !readAppConfig(&app_config) ) {
-    strcpy(app_config.mqtt_username, "smartmeter");
-    strcpy(app_config.mqtt_password, "se_smartmeter");
-    strcpy(app_config.mqtt_remote_host, "sendlab.avansti.nl");
-    strcpy(app_config.mqtt_remote_port, "11883");
+    strcpy(app_config.mqtt_username, MQTT_USERNAME);
+    strcpy(app_config.mqtt_password, MQTT_PASSWORD);
+    strcpy(app_config.mqtt_remote_host, MQTT_REMOTE_HOST);
+    strcpy(app_config.mqtt_remote_port, MQTT_REMOTE_PORT);
     strcpy(app_config.p1_baudrate, "115200");
     writeAppConfig(&app_config);
   }

@@ -9,6 +9,11 @@
   V1.3: Updated to latest PubSubClient (jan 2021)
   V1.4: Changed server location (sendlab.nl), removed credentials
 
+  Installation Arduino IDE:
+  - How to get the Wemos installed in the Ardiuno IDE: https://siytek.com/wemos-d1-mini-arduino-wifi/
+  - Install library WiFiManager by tablatronics: https://github.com/tzapu/WiFiManager
+  - Install library JsonArduino by Banoit Blanchon: https://arduinojson.org/?utm_source=meta&utm_medium=library.properties
+
   Happy Coding
   
   -------------------------------------------------------------------------
