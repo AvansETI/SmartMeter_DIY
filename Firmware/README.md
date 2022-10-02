@@ -20,3 +20,9 @@ part of the project as well.
 
 This project is last updated in january 2022
 
+## PlatformIO
+
+Some developers like to use platformIO, so therefore this is also added to the repository. Note that the
+ArduinoSketch is the main firmware that contains always the latest changes.
+
+

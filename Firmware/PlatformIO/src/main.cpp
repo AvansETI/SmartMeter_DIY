@@ -11,8 +11,8 @@
 
   Installation Arduino IDE:
   - How to get the Wemos installed in the Ardiuno IDE: https://siytek.com/wemos-d1-mini-arduino-wifi/
-  - Install library WiFiManager by tablatronics: https://github.com/tzapu/WiFiManager
-  - Install library JsonArduino by Banoit Blanchon: https://arduinojson.org/?utm_source=meta&utm_medium=library.properties
+  - Install library tzapu/WiFiManager by tablatronics: https://github.com/tzapu/WiFiManager
+  - Install library bblanchon/JsonArduino by Banoit Blanchon: https://arduinojson.org/?utm_source=meta&utm_medium=library.properties
   - Install library knolleary/PubSubClient by Nick O'Leary: https://github.com/knolleary/pubsubclient
  
   Happy Coding
@@ -76,7 +76,7 @@
 // D6     GPIO12  MISO  
 // D7     GPIO13
 // D8     GPIO15      Boot mode, must be LOW during flash boot
-// A0             Analog
+// A0     Analog
 
 #define RST_PIN         D2  // Wemos D2 (GPIO4)
 #define RGB_R_PIN       D6  // Wemos D6 (GPIO12)
@@ -87,7 +87,6 @@
 #define MQTT_TOPIC_UPDATE_RATE_MS  20000
 
 // Local variables
-uint32_t cur=0, prev=0;
 WiFiManager wifiManager;
 
 typedef enum {
@@ -206,6 +205,24 @@ MEASUREMENT_STRUCT payload = {""};
 // mqtt topic strings: eti-sm
 char mqtt_topic[128];
 
+// forward declaration
+void raiseEvent(ENUM_EVENT new_event);
+void initFSM(ENUM_STATE new_state, ENUM_EVENT new_event);
+void smartLedInit();
+void smartLedFlash(RGB_COLOR_ENUM color);
+void smartLedColor(RGB_COLOR_ENUM color, RGB_STATE_ENUM state);
+bool capture_p1();
+void p1_reset();
+void p1_store(char ch);
+bool deleteAppConfig();
+bool writeAppConfig(APP_CONFIG_STRUCT *app_config);
+bool readAppConfig(APP_CONFIG_STRUCT *app_config);
+void create_unigue_mqtt_id(char *signature);
+void create_unique_mqtt_topic_string(char *topic_string);
+void mqtt_connect();
+void mqtt_callback(char *topic, byte *payload, unsigned int length);
+void saveConfigCallback();
+void sim_callback();
 
 /******************************************************************/
 void saveConfigCallback () 
@@ -249,7 +266,7 @@ Version :      DMK, Initial code
   // Setup unique mqtt id and mqtt topic string
   create_unique_mqtt_topic_string(app_config.mqtt_topic);
   create_unigue_mqtt_id(app_config.mqtt_id);
-  sprintf(mqtt_topic, MQTT_TOPIC);
+  sprintf(mqtt_topic,MQTT_TOPIC);
 
   // Perform factory reset switches
   // is pressed during powerup
@@ -592,7 +609,7 @@ Version :      DMK, Initial code
 }
 
 /******************************************************************/
-boolean deleteAppConfig() 
+bool deleteAppConfig() 
 /* 
 short:         Erase config to FFS
 inputs:        
@@ -601,7 +618,7 @@ notes:
 Version :      DMK, Initial code
 *******************************************************************/
 {
-  boolean retval = false;
+  bool retval = false;
   if( SPIFFS.begin() ) {
     if( SPIFFS.exists("/config.json") ) {
       if( SPIFFS.remove("/config.json") ) {
@@ -666,6 +683,7 @@ Version :      DMK, Initial code
       while( Serial.available() ) { 
          char ch = Serial.read();
          switch(p1_msg_state) {
+            
             //
             case P1_MSG_S0:
                if( ch == '/' ) {
@@ -914,15 +932,15 @@ void mqtt_heartbeat(void){
     datagram["signature"] = app_config.mqtt_id;
 
     // MS: Why are these values inserted in here? Can these be removed?
-    JsonObject s0 = datagram.createNestedObject("s0");
-    s0["unit"] = "W";
-    s0["label"] = "e-car charger";
-    s0["value"] = 0;
+    //JsonObject s0 = datagram.createNestedObject("s0");
+    //s0["unit"] = "W";
+    //s0["label"] = "e-car charger";
+    //s0["value"] = 0;
     
-    JsonObject s1 = datagram.createNestedObject("s1");
-    s1["unit"] = "W";
-    s1["label"] = "solar panels";
-    s1["value"] = 0;
+    //JsonObject s1 = datagram.createNestedObject("s1");
+    //s1["unit"] = "W";
+    //s1["label"] = "solar panels";
+    //s1["value"] = 0;
     
     String payload = "";
     serializeJson(doc, payload);
