@@ -8,6 +8,7 @@
   V1.2: Updated to latest version ArduinoJson library (feb 2020)
   V1.3: Updated to latest PubSubClient (jan 2021)
   V1.4: Changed server location (sendlab.nl), removed credentials
+  v1.5: Moved from deprecated SPIFFS to LittleFS and added ECC key exchange with sendlab.nl server
 
   Installation Arduino IDE:
   - How to get the Wemos installed in the Ardiuno IDE: https://siytek.com/wemos-d1-mini-arduino-wifi/
@@ -48,8 +49,9 @@
 #include <Ticker.h>
 #include <ESP8266mDNS.h>
 #include <ArduinoJson.h>
-#include <FS.h>
+#include <LittleFS.h> // Moved from deprecated SPIFFS to LittleFS
 #include <Ticker.h>
+#include <uECC.h>
 
 #include "PubSubClient.h"
 // FIXED in Library: No actions needed. Old mgs: 'MAKE SURE: in PubSubClient.h change MQTT_MAX_PACKET_SIZE to 2048 !!'
@@ -117,6 +119,9 @@ typedef struct {
    char     mqtt_remote_host[MQTT_REMOTE_HOST_LENGTH];
    char     mqtt_remote_port[MQTT_REMOTE_PORT_LENGTH];
    char     p1_baudrate[P1_BAUDRATE_LENGTH];
+   char     ecc_publickey[40*2+1]; // *2 to convert to hex and +1 is the \0 character that is required for string ending!
+   char     ecc_privatekey[21*2+1];
+   char     ecc_secretkey[20*2+1];
 } APP_CONFIG_STRUCT;
 
 APP_CONFIG_STRUCT app_config;
@@ -205,6 +210,11 @@ MEASUREMENT_STRUCT payload = {""};
 // mqtt topic strings: eti-sm
 char mqtt_topic[128];
 
+// Crypto ECC
+const struct uECC_Curve_t * curve = uECC_secp160r1();
+uint8_t publickey[40];
+uint8_t privatekey[21];
+
 // forward declaration
 void raiseEvent(ENUM_EVENT new_event);
 void initFSM(ENUM_STATE new_state, ENUM_EVENT new_event);
@@ -223,6 +233,80 @@ void mqtt_connect();
 void mqtt_callback(char *topic, byte *payload, unsigned int length);
 void saveConfigCallback();
 void sim_callback();
+String numberToHex(uint8_t* n, unsigned size);
+void hexToNumber(String hex, uint8_t* n);
+int RNG(uint8_t *dest, unsigned size);
+
+/******************************************************************/
+String numberToHex(uint8_t* n, unsigned size)
+/* 
+short    : Convert an array of numbers to a hex string.
+inputs   : n is the array of numbers and size is the size of the array.
+outputs  : A String is returned containing the hex value of the number.
+notes    : 
+Version  : MS, Initial code
+*******************************************************************/
+{
+  char hex[] = "0123456789ABCDEF";
+
+  String result = "";
+  for ( uint8_t i=0; i < size; i++ ) {
+    result.concat(hex[(n[i] & 0xF0) >> 4]);
+    result.concat(hex[(n[i] & 0x0F)]);
+  }
+
+  return result;
+}
+
+/******************************************************************/
+void hexToNumber(String hex, uint8_t* n)
+/* 
+short    : Convert a hex string to a number array.
+inputs   : hex contains the heximal number and n is the pointer to the array.
+outputs  : n results into an converted array of the hex string.
+notes    : 
+Version  : MS, Initial code
+*******************************************************************/
+{
+  String hexNumber = "0123456789ABCDEF";
+  for (uint8_t i=0; i < hex.length(); i=i+2) {
+    n[i/2] = ((hexNumber.indexOf(hex.charAt(i))) << 4) + (hexNumber.indexOf(hex.charAt(i+1)));
+  }
+}
+
+/******************************************************************/
+int RNG(uint8_t *dest, unsigned size)
+/* 
+short    : Random number generator for the Wemos         
+inputs   : dest is the pointer to the uint8_t array with size size.
+outputs  : dest is filles with random number.
+notes    : No true random generator and no checks to see that the number
+           is suitable for the crypto key. Based on example uECC lib.
+Version  : MS, Initial code
+*******************************************************************/
+{
+  while (size) {
+    uint8_t val = 0;
+    for (unsigned i = 0; i < 8; ++i) {
+      uint32_t init = ESP.random();
+      int count = 0;
+      while (ESP.random() == init) {
+        ++count;
+      }
+      
+      if (count == 0) {
+         val = (val << 1) | (init & 0x01);
+      } else {
+         val = (val << 1) | (count & 0x01);
+      }
+    }
+
+    *dest = val;
+    ++dest;
+    --size;
+  }
+  return 1;
+}
 
 /******************************************************************/
 void saveConfigCallback () 
@@ -246,6 +330,7 @@ inputs:
 outputs: 
 notes:         
 Version :      DMK, Initial code
+               MS, Added crypto keys
 *******************************************************************/
 {    
   // Define I/O and attach ISR
@@ -262,6 +347,10 @@ Version :      DMK, Initial code
     smartLedFlash(BLUE);
     delay(150);
   }
+
+  // Crypto ECC initialization, create new keys
+  uECC_set_rng(&RNG);
+  uECC_make_key(publickey, privatekey, curve);
 
   // Setup unique mqtt id and mqtt topic string
   create_unique_mqtt_topic_string(app_config.mqtt_topic);
@@ -281,12 +370,16 @@ Version :      DMK, Initial code
   }
 
   // Read config file or generate default
-  if( !readAppConfig(&app_config) ) {
+  if( !readAppConfig(&app_config) ) {    
     strcpy(app_config.mqtt_username, MQTT_USERNAME);
     strcpy(app_config.mqtt_password, MQTT_PASSWORD);
     strcpy(app_config.mqtt_remote_host, MQTT_REMOTE_HOST);
     strcpy(app_config.mqtt_remote_port, MQTT_REMOTE_PORT);
     strcpy(app_config.p1_baudrate, "115200");
+    strcpy(app_config.ecc_publickey, numberToHex(publickey, 40).c_str());
+    strcpy(app_config.ecc_privatekey, numberToHex(privatekey, 21).c_str());
+    strcpy(app_config.ecc_secretkey, "");
+
     writeAppConfig(&app_config);
   }
 
@@ -360,6 +453,11 @@ Version :      DMK, Initial code
   Serial.printf("DSMR settings\n");
   Serial.printf("\tP1 Baudrate     : %s baud\n", app_config.p1_baudrate);
 
+  Serial.printf("ECC info\n");
+  Serial.printf("\tPublic key : %s\n", app_config.ecc_publickey);
+  Serial.printf("\tPrivate key: %s\n", app_config.ecc_privatekey);
+  Serial.printf("\tPublic key : %s\n", numberToHex(publickey, 40).c_str());
+  Serial.printf("\tPrivate key: %s\n", numberToHex(privatekey, 21).c_str());
   Serial.printf("***************************************************\n\n");
 
   Serial.flush();
@@ -443,7 +541,6 @@ Version :      DMK, Initial code
     } 
   }
 }
-
 
 /******************************************************************
 *
@@ -544,13 +641,14 @@ inputs:
 outputs: 
 notes:         
 Version :      DMK, Initial code
+               MS, Replaced deprecated SPIFFS to LittleFS
 *******************************************************************/
 {
   bool retval = false;
   
-  if( SPIFFS.begin() ) {
-    if( SPIFFS.exists("/config.json") ) {
-       File configFile = SPIFFS.open("/config.json","r");
+  if( LittleFS.begin() ) {
+    if( LittleFS.exists("/config.json") ) {
+       File configFile = LittleFS.open("/config.json","r");
        if( configFile ) {
 
           size_t size = configFile.size();
@@ -570,6 +668,9 @@ Version :      DMK, Initial code
              strcpy(app_config->mqtt_remote_host, doc["MQTT_HOST"]);
              strcpy(app_config->mqtt_remote_port, doc["MQTT_PORT"]);
              strcpy(app_config->p1_baudrate, doc["P1_BAUDRATE"]);
+             strcpy(app_config->ecc_publickey, doc["ECC_PUBLIC"]);
+             strcpy(app_config->ecc_privatekey, doc["ECC_PRIVATE"]);
+             strcpy(app_config->ecc_secretkey, doc["ECC_SECRET"]);
              retval = true;
           }
        }
@@ -586,6 +687,7 @@ inputs:
 outputs: 
 notes:         
 Version :      DMK, Initial code
+               MS, Replaced deprecated SPIFFS to LittleFS
 *******************************************************************/
 {
   bool retval = false;
@@ -595,11 +697,14 @@ Version :      DMK, Initial code
   StaticJsonDocument<512> doc;
   doc["MQTT_USERNAME"] = app_config->mqtt_username;
   doc["MQTT_PASSWORD"] = app_config->mqtt_password;
-  doc["MQTT_HOST"] = app_config->mqtt_remote_host;
-  doc["MQTT_PORT"] = app_config->mqtt_remote_port;
-  doc["P1_BAUDRATE"]= app_config->p1_baudrate;
+  doc["MQTT_HOST"]     = app_config->mqtt_remote_host;
+  doc["MQTT_PORT"]     = app_config->mqtt_remote_port;
+  doc["P1_BAUDRATE"]   = app_config->p1_baudrate;
+  doc["ECC_PUBLIC"]    = app_config->ecc_publickey;
+  doc["ECC_PRIVATE"]   = app_config->ecc_privatekey;
+  doc["ECC_SECRET"]    = app_config->ecc_secretkey;
   
-  File configFile = SPIFFS.open("/config.json","w+");
+  File configFile = LittleFS.open("/config.json","w+");
   if( configFile ) {
      serializeJson(doc, configFile);
      configFile.close();
@@ -616,12 +721,13 @@ inputs:
 outputs: 
 notes:         
 Version :      DMK, Initial code
+               MS, Replaced deprecated SPIFFS to LittleFS
 *******************************************************************/
 {
   bool retval = false;
-  if( SPIFFS.begin() ) {
-    if( SPIFFS.exists("/config.json") ) {
-      if( SPIFFS.remove("/config.json") ) {
+  if( LittleFS.begin() ) {
+    if( LittleFS.exists("/config.json") ) {
+      if( LittleFS.remove("/config.json") ) {
         retval = true;
       }
     }
