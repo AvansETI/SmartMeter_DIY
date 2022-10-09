@@ -1,5 +1,5 @@
 /*-------------------------------------------------------------------------
-  Arduino sketch to mqtt Dutch Smart Meter P1 datagrams.
+  PlatformIO (Arduino sketch) to mqtt Dutch Smart Meter P1 datagrams.
 
   See  for more information.
 
@@ -15,7 +15,8 @@
   - Install library tzapu/WiFiManager by tablatronics: https://github.com/tzapu/WiFiManager
   - Install library bblanchon/JsonArduino by Banoit Blanchon: https://arduinojson.org/?utm_source=meta&utm_medium=library.properties
   - Install library knolleary/PubSubClient by Nick O'Leary: https://github.com/knolleary/pubsubclient
- 
+  - micro-ecc, AES
+
   Happy Coding
   
   -------------------------------------------------------------------------
@@ -60,6 +61,8 @@
 
 // Homeserver credentials
 #include "MqttSendlab.h"
+#include "fsm.hpp"
+#include "fsmstate_start.hpp"
 
 #define DEBUG
 
@@ -89,6 +92,10 @@
 
 // Minimun delay between mqtt publish events. Prevents mqtt spam e.g. DSMR 5.0 updates every second!
 #define MQTT_TOPIC_UPDATE_RATE_MS  20000
+
+// Finite State Machine
+FSM<10, 10> fsmTest(true);
+FSMState_Start fsmState_Start(&fsmTest);
 
 // Local variables
 WiFiManager wifiManager;
@@ -463,6 +470,8 @@ Version :      DMK, Initial code
   // Always print config to terminal before swapping serial port
   Serial.begin(115200, SERIAL_8N1); Serial.println();
 
+  fsmTest.addState(&fsmState_Start);
+
   WiFiClient client;
   String data = String(app_config.mqtt_id) + ";ECC_SECP256R1;" + numberToHex(publickey, ECC_KEY_SIZE*2);
   Serial.println(data);
@@ -594,7 +603,8 @@ notes:
 Version :      DMK, Initial code
 *******************************************************************/
 {
-
+  fsmTest.loop();
+  
   // Check for IP connection 
   if( WiFi.status() == WL_CONNECTED) {
 
