@@ -1,11 +1,16 @@
 #include <fsm.hpp>
 
-class FSMState_Start: public FSMState {
+class FSMState_Security: public FSMState {
     private:
 
     public:
-        FSMState_Start(FSMEventInterface* event): FSMState("START", event) {
+        FSMState_Security(FSMEventInterface* event): FSMState("START", event) {
         }
+
+        void setup() {
+
+        }
+
 
         // When the state is selected, this is used to initialize the state and is called once.
         int pre() {

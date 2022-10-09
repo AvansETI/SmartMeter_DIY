@@ -60,9 +60,14 @@
 // FIXED in Library: No actions needed. Old mgs: 'MAKE SURE: in PubSubClient.h change MQTT_MAX_PACKET_SIZE to 2048 !!'
 
 // Homeserver credentials
-#include "MqttSendlab.h"
+#include "MqttConfig.h"
 #include "fsm.hpp"
-#include "fsmstate_start.hpp"
+#include "states/fsmstate_start.hpp"
+#include "states/fsmstate_wifi.hpp"
+#include "states/fsmstate_mqtt.hpp"
+#include "states/fsmstate_security.hpp"
+#include "states/fsmstate_capturep1.hpp"
+#include "states/fsmstate_send.hpp"
 
 #define DEBUG
 
@@ -94,8 +99,13 @@
 #define MQTT_TOPIC_UPDATE_RATE_MS  20000
 
 // Finite State Machine
-FSM<10, 10> fsmTest(true);
+FSM<10, 10> fsmTest(false);
 FSMState_Start fsmState_Start(&fsmTest);
+FSMState_WiFi fsmState_WiFi(&fsmTest);
+FSMState_MQTT fsmState_MQTT(&fsmTest);
+FSMState_Security fsmState_Security(&fsmTest);
+FSMState_CaptureP1 fsmState_CaptureP1(&fsmTest);
+FSMState_Send fsmState_Send(&fsmTest);
 
 // Local variables
 WiFiManager wifiManager;
@@ -471,6 +481,26 @@ Version :      DMK, Initial code
   Serial.begin(115200, SERIAL_8N1); Serial.println();
 
   fsmTest.addState(&fsmState_Start);
+  fsmTest.addState(&fsmState_WiFi);
+  fsmTest.addState(&fsmState_MQTT);
+  fsmTest.addState(&fsmState_Security);
+  fsmTest.addState(&fsmState_CaptureP1);
+  fsmTest.addState(&fsmState_Send);
+
+  fsmTest.addTransition(&fsmState_Start, "READY", &fsmState_WiFi);
+  fsmTest.addTransition(&fsmState_WiFi, "WIFI", &fsmState_MQTT);
+  fsmTest.addTransition(&fsmState_MQTT, "MQTT", &fsmState_Security);
+  fsmTest.addTransition(&fsmState_MQTT, "ERROR", &fsmState_WiFi);
+  fsmTest.addTransition(&fsmState_Security, "DONE", &fsmState_CaptureP1);
+  fsmTest.addTransition(&fsmState_Security, "ERROR", &fsmState_WiFi);
+  fsmTest.addTransition(&fsmState_CaptureP1, "P1", &fsmState_Send);
+  fsmTest.addTransition(&fsmState_CaptureP1, "ERROR", &fsmState_WiFi);
+  fsmTest.addTransition(&fsmState_Send, "SEND", &fsmState_CaptureP1);
+  fsmTest.addTransition(&fsmState_Send, "ERROR", &fsmState_WiFi);
+
+  fsmTest.setup();
+  fsmTest.start(&fsmState_Start);
+  fsmTest.raiseEvent("READY");
 
   WiFiClient client;
   String data = String(app_config.mqtt_id) + ";ECC_SECP256R1;" + numberToHex(publickey, ECC_KEY_SIZE*2);
@@ -604,7 +634,7 @@ Version :      DMK, Initial code
 *******************************************************************/
 {
   fsmTest.loop();
-  
+
   // Check for IP connection 
   if( WiFi.status() == WL_CONNECTED) {
 

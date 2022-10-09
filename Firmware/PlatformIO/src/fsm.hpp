@@ -31,6 +31,8 @@ class FSMState {
             return this->name;
         }
 
+        virtual void setup() = 0;
+
         // When the state is selected, this is used to initialize the state and is called once.
         virtual int pre() = 0;
 
@@ -151,6 +153,12 @@ class FSM: public FSMEventInterface {
                         this->currentState = newState; // Set the new state
                     }
                 }
+            }
+        }
+
+        void setup() {
+            for (unsigned int i = 0; i < this->totalStates; i++) {
+                this->states[i]->setup();
             }
         }
 
