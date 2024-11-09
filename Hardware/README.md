@@ -20,7 +20,7 @@ The first version of the SmartMeter. It contains some errors that neede to be fi
 
 The second version fixed the errors.
 
-## Version 3
+## Version 2.1
 
 This version supports the newest SmartMeter version. With this version is it possible to use
 5V power from the SmartMeter. No need anymore to use an adapter. Furthermore, if you have an
