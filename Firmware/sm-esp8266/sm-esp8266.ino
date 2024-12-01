@@ -135,15 +135,15 @@ char p1_buf[P1_MAX_DATAGRAM_SIZE]; // Complete P1 telegram
 char *p1;
 
 // Web server initialization
-#define WEBSEVERDATALENGTH 12*24
+#define WEBSERVERDATALENGTH 12*24
 ESP8266WebServer server(80);   // WebServer
 bool webServerInitialized = false;
 void handleRoot();             // Handle the root
 void handleDataApi();          // Handle the update data api
 void handleNotFound();         // Handle not found page
 uint16_t webDataPointer = 0;
-float dataActualPower[WEBSEVERDATALENGTH];  // Variable to store the actual power data five minute data 12 data points each hour
-float dataActualEnergy[WEBSEVERDATALENGTH]; // Variable to store the actual energy data five minute data 12 data points each hour
+float dataActualPower[WEBSERVERDATALENGTH];  // Variable to store the actual power data five minute data 12 data points each hour
+float dataActualEnergy[WEBSERVERDATALENGTH]; // Variable to store the actual energy data five minute data 12 data points each hour
 void addWebDataP1();
 
 /* Prototype FSM functions. */
@@ -415,6 +415,11 @@ Version :      DMK, Initial code
       server.begin();                           // Actually start the server
       DEBUG_PRINTF("%s\n", "HTTP server started");
       webServerInitialized = true;
+
+      for ( uint16_t i=0; i < WEBSERVERDATALENGTH; i++ ) {
+        dataActualPower[i] = 0;
+        dataActualEnergy[i] = 0;
+      }
     }
 
     // Handle mqtt
@@ -998,12 +1003,21 @@ $(document).ready(function(){
   </script>
  </body>
 </html>)";
-  server.send(200, "text/html", rootHtml);   // Send HTTP status 200 (Ok) and send some html to the browser/client
+  server.send(200, "text/html", rootHtml);
 }
 
 /******************************************************************/
 void handleDataApi() {
-  server.send(200, "text/json", "Data API!");   // Send HTTP status 200 (Ok) and send some text to the browser/client
+  String dataJson = "{\"power\": [";//0, 1, 2, 3, 4, 5], \"energy\": [5, 4, 3, 2, 1, 0]}";
+  for ( uint16_t i=0; i < WEBSERVERDATALENGTH-1; i++ ) {
+    dataJson = dataJson + dataActualPower[i] + ", ";
+  }
+  dataJson = dataJson + dataActualPower[WEBSERVERDATALENGTH-1] + "], \"energy\": [";
+  for ( uint16_t i=0; i < WEBSERVERDATALENGTH-1; i++ ) {
+    dataJson = dataJson + dataActualEnergy[i] + ", ";
+  }
+  dataJson = dataJson + dataActualEnergy[WEBSERVERDATALENGTH-1] + "], \"p1\": \"" + p1_buf + "\"}";
+  server.send(200, "text/json", dataJson);
 }
 
 /******************************************************************/
