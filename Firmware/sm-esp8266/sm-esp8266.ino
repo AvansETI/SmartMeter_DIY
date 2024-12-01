@@ -43,6 +43,7 @@
   -------------------------------------------------------------------------*/
 
 #include <ESP8266WiFi.h>
+#include <ESP8266WebServer.h>
 #include <WiFiClient.h>
 #include <WiFiManager.h>
 #include <Ticker.h>
@@ -109,7 +110,6 @@ bool shouldSaveConfig;
 #define MQTT_REMOTE_PORT_LENGTH    10
 #define P1_BAUDRATE_LENGTH         10
 
-
 typedef struct {
    char     mqtt_username[MQTT_USERNAME_LENGTH];
    char     mqtt_password[MQTT_PASSWORD_LENGTH];
@@ -133,6 +133,18 @@ PubSubClient mqttClient("", 0, wifiClient);
 #define P1_MAX_DATAGRAM_SIZE 2048
 char p1_buf[P1_MAX_DATAGRAM_SIZE]; // Complete P1 telegram
 char *p1;
+
+// Web server initialization
+#define WEBSEVERDATALENGTH 12*24
+ESP8266WebServer server(80);   // WebServer
+bool webServerInitialized = false;
+void handleRoot();             // Handle the root
+void handleDataApi();          // Handle the update data api
+void handleNotFound();         // Handle not found page
+uint16_t webDataPointer = 0;
+float dataActualPower[WEBSEVERDATALENGTH];  // Variable to store the actual power data five minute data 12 data points each hour
+float dataActualEnergy[WEBSEVERDATALENGTH]; // Variable to store the actual energy data five minute data 12 data points each hour
+void addWebDataP1();
 
 /* Prototype FSM functions. */
 void start_pre(void);
@@ -343,15 +355,16 @@ Version :      DMK, Initial code
   Serial.printf("DSMR settings\n");
   Serial.printf("\tP1 Baudrate     : %s baud\n", app_config.p1_baudrate);
 
-  Serial.printf("***************************************************\n\n");
-
-  Serial.flush();
-
   // mDNS Service
-  if( !MDNS.begin("DIY-EMON_V14") ) {
+  if ( MDNS.begin("diy_smartmeter") ) { 
+    MDNS.addService("http", "tcp", 80);
+    Serial.println("\nmDNS: Started");
   } else {
-    MDNS.addService("diy_emon_v14", "tcp", 10000);
+    Serial.println("\nmDNS: Error");
   }
+
+  Serial.printf("***************************************************\n\n");
+  Serial.flush();
 
   // Set P1 port baudrate. DSMR V2 uses 9600 baud. Otherwise 115200 baud
   long baudrate = atol(app_config.p1_baudrate);
@@ -386,13 +399,23 @@ void loop()
 short:         loop(), runs forever executing FSM
 inputs:        
 outputs: 
-notes:         
+notes:         MS, Not full implementation of FSM; a lot of logic still in loop()
 Version :      DMK, Initial code
 *******************************************************************/
 {
 
   // Check for IP connection 
   if( WiFi.status() == WL_CONNECTED) {
+
+    // Setup the web server when Wi-Fi is connected
+    if( !webServerInitialized ) {
+      server.on("/", handleRoot);               // Call the 'handleRoot' function when a client requests URI "/"
+      server.on("/data", handleDataApi);        // Call the 'handleDataApi' function when a client requests URI "/data"
+      server.onNotFound(handleNotFound);        // When a client requests an unknown URI (i.e. something other than "/"), call function "handleNotFound"
+      server.begin();                           // Actually start the server
+      DEBUG_PRINTF("%s\n", "HTTP server started");
+      webServerInitialized = true;
+    }
 
     // Handle mqtt
     if( !mqttClient.connected() ) {
@@ -403,10 +426,16 @@ Version :      DMK, Initial code
       // Handle MQTT loop
       mqttClient.loop();
     }
+
+    // Handle HTTP server
+    if ( webServerInitialized ) {
+      server.handleClient(); // Listen for HTTP requests from clients
+    }
   }
 
   // Capture P1 messages. If P1 msg is available raise MQTT event
   if( true == capture_p1() ) {
+    addWebDataP1();
     raiseEvent(EV_P1_AVAILABLE);
   }
 
@@ -422,7 +451,7 @@ Version :      DMK, Initial code
     
     // Call the heartbeat fp
     if( fsm[state][event].heartbeat != NULL) {
-      fsm[state][event].heartbeat() ;
+      fsm[state][event].heartbeat();
     } 
   }
 }
@@ -891,7 +920,7 @@ void mqtt_pre(void){
 }
 
 /******************************************************************/
-void mqtt_heartbeat(void){
+void mqtt_heartbeat(void) {
   DEBUG_PRINTF("%s:\n\r", __FUNCTION__);
 
   // Throttle mqtt topic speed: check if previous send MQTT
@@ -939,4 +968,43 @@ void mqtt_heartbeat(void){
 /******************************************************************/
 void mqtt_post(void){
   DEBUG_PRINTF("%s:\n\r", __FUNCTION__);
+}
+
+/******************************************************************/
+void handleRoot() {
+   String rootHtml = R"(
+<!doctype html>
+<html lang="en" data-bs-theme="dark">
+<html>
+ <head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <title>SmartMeter DIY</title>
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
+ </head>
+ <body>
+  Hello world
+  <script>
+$(document).ready(function(){
+  $("<p>Appended</p>").appendTo("body");
+});
+  </script>
+ </body>
+</html>)";
+  server.send(200, "text/html", rootHtml);   // Send HTTP status 200 (Ok) and send some html to the browser/client
+}
+
+/******************************************************************/
+void handleDataApi() {
+  server.send(200, "text/json", "Data API!");   // Send HTTP status 200 (Ok) and send some text to the browser/client
+}
+
+/******************************************************************/
+void handleNotFound () {
+  server.send(404, "text/plain", "404: Not found"); // Send HTTP status 404 (Not Found) when there's no handler for the URI in the request
+}
+
+/******************************************************************/
+void addWebDataP1() {
+  DEBUG_PRINTF("P1: %s\n\r", p1_buf);
 }
