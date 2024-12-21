@@ -142,8 +142,14 @@ void handleRoot();             // Handle the root
 void handleDataApi();          // Handle the update data api
 void handleNotFound();         // Handle not found page
 uint16_t webDataPointer = 0;
-float dataActualPower[WEBSERVERDATALENGTH];  // Variable to store the actual power data five minute data 12 data points each hour
-float dataActualEnergy[WEBSERVERDATALENGTH]; // Variable to store the actual energy data five minute data 12 data points each hour
+char DSMRVersion[5] = "-";
+char DSMRTimestamp[14] = "-";
+float dataPowerConsumption[WEBSERVERDATALENGTH];  // Variable to store the actual power data five minute data 12 data points each hour
+float dataPowerProduction[WEBSERVERDATALENGTH];  // Variable to store the actual power data five minute data 12 data points each hour
+float dataEnergyConsumption1[WEBSERVERDATALENGTH]; // Variable to store the actual energy data five minute data 12 data points each hour
+float dataEnergyConsumption2[WEBSERVERDATALENGTH]; // Variable to store the actual energy data five minute data 12 data points each hour
+float dataEnergyProduction1[WEBSERVERDATALENGTH]; // Variable to store the actual energy data five minute data 12 data points each hour
+float dataEnergyProduction2[WEBSERVERDATALENGTH]; // Variable to store the actual energy data five minute data 12 data points each hour
 void addWebDataP1();
 
 /* Prototype FSM functions. */
@@ -417,8 +423,12 @@ Version :      DMK, Initial code
       webServerInitialized = true;
 
       for ( uint16_t i=0; i < WEBSERVERDATALENGTH; i++ ) {
-        dataActualPower[i] = 0;
-        dataActualEnergy[i] = 0;
+        dataPowerConsumption[i] = 0;
+        dataPowerProduction[i] = 0;
+        dataEnergyConsumption1[i] = 0;
+        dataEnergyConsumption2[i] = 0;
+        dataEnergyProduction1[i] = 0;
+        dataEnergyProduction2[i] = 0;
       }
     }
 
@@ -1008,15 +1018,16 @@ $(document).ready(function(){
 
 /******************************************************************/
 void handleDataApi() {
-  String dataJson = "{\"power\": [";//0, 1, 2, 3, 4, 5], \"energy\": [5, 4, 3, 2, 1, 0]}";
+  String dataJson = "{\"power_consumption\": [";//0, 1, 2, 3, 4, 5], \"energy\": [5, 4, 3, 2, 1, 0]}";
   for ( uint16_t i=0; i < WEBSERVERDATALENGTH-1; i++ ) {
-    dataJson = dataJson + dataActualPower[i] + ", ";
+    dataJson = dataJson + dataPowerConsumption[i] + ", ";
   }
-  dataJson = dataJson + dataActualPower[WEBSERVERDATALENGTH-1] + "], \"energy\": [";
+  dataJson = dataJson + dataPowerConsumption[WEBSERVERDATALENGTH-1] + "], \"power_production\": [";
   for ( uint16_t i=0; i < WEBSERVERDATALENGTH-1; i++ ) {
-    dataJson = dataJson + dataActualEnergy[i] + ", ";
+    dataJson = dataJson + dataPowerProduction[i] + ", ";
   }
-  dataJson = dataJson + dataActualEnergy[WEBSERVERDATALENGTH-1] + "], \"p1\": \"" + p1_buf + "\"}";
+  // TODO: aanvullen
+  dataJson = dataJson + dataPowerProduction[WEBSERVERDATALENGTH-1] + "], \"p1\": \"" + p1_buf + "\"}";
   server.send(200, "text/json", dataJson);
 }
 
@@ -1026,6 +1037,121 @@ void handleNotFound () {
 }
 
 /******************************************************************/
+/*
+1-3:0.2.8(50)
+0-0:1.0.0(241205223051W)
+0-0:96.1.1(4530303632303030303130363330373232)
+1-0:1.8.1(007812.965*kWh)
+1-0:1.8.2(004695.310*kWh)
+1-0:2.8.1(002313.919*kWh)
+1-0:2.8.2(005836.025*kWh)
+0-0:96.14.0(0001)
+1-0:1.7.0(00.670*kW)
+1-0:2.7.0(00.000*kW)
+0-0:96.7.21(00017)
+0-0:96.7.9(00007)
+1-0:99.97.0(2)(0-0:96.7.19)(230621102410S)(0000004757*s)(221007100958S)(0000024711*s)
+1-0:32.32.0(00002)
+1-0:52.32.0(00002)
+1-0:72.32.0(00004)
+1-0:32.36.0(00000)
+1-0:52.36.0(00000)
+1-0:72.36.0(00000)
+0-0:96.13.0()
+1-0:32.7.0(225.0*V)
+1-0:52.7.0(225.0*V)
+1-0:72.7.0(226.0*V)
+1-0:31.7.0(002*A)
+1-0:51.7.0(001*A)
+1-0:71.7.0(002*A)
+1-0:21.7.0(00.384*kW)
+1-0:41.7.0(00.156*kW)
+1-0:61.7.0(00.129*kW)
+1-0:22.7.0(00.000*kW)
+1-0:42.7.0(00.000*kW)
+1-0:62.7.0(00.000*kW)
+0-1:24.1.0(003)
+0-1:96.1.0(4730303533303033363734313433343137)
+0-1:24.2.1(241205223000W)(06326.869*m3)
+!63B9
+"}
+*/
+//https://github.com/energietransitie/dsmr-info/blob/main/dsmr-p1-specs.csv
+//https://github.com/energietransitie/dsmr-info/blob/main/dsmr-e-meters.csv
+//https://github.com/reneklootwijk/node-dsmr/tree/master
 void addWebDataP1() {
   DEBUG_PRINTF("P1: %s\n\r", p1_buf);
+  char keys[9][10] = {
+    "1-3:0.2.8", // DMSR version -> 1-3:0.2.8(50)
+    "0-0:1.0.0", // Timestamp    -> 0-0:1.0.0(241221224725W)
+    "1-0:1.8.1", // Total consumption tarrif 1 -> 1-0:1.8.1(007812.965*kWh)
+    "1-0:1.8.2", // Total consumption tarrif 2 -> 1-0:1.8.2(004695.310*kWh)
+    "1-0:2.8.1", // Total production tarrif 1 -> 1-0:2.8.1(002313.919*kWh)
+    "1-0:2.8.2", // Total production tarrif 2 -> 1-0:2.8.2(005836.025*kWh)
+    "0-0:96.14", // Actual tarrif -> 0-0:96.14.0(0001)
+    "1-0:1.7.0", // Actual consumption -> 1-0:1.7.0(00.670*kW)
+    "1-0:2.7.0", // Actual production -> 1-0:2.7.0(00.000*kW)  
+  };
+
+  if ( webDataPointer == P1_MAX_DATAGRAM_SIZE ) { // shift the values to the left
+    for ( uint16_t i=0; i < P1_MAX_DATAGRAM_SIZE - 1; i++ ) {
+      dataPowerConsumption[i] = dataPowerConsumption[i+1];
+      dataPowerProduction[i] = dataPowerProduction[i+1];
+      dataEnergyConsumption1[i] = dataEnergyConsumption1[i+1];
+      dataEnergyConsumption2[i] = dataEnergyConsumption2[i+1];
+      dataEnergyProduction1[i] = dataEnergyProduction1[i+1];
+      dataEnergyProduction2[i] = dataEnergyProduction2[i+1];
+      webDataPointer = P1_MAX_DATAGRAM_SIZE - 1; // Set pointer to last element
+    }
+  }
+
+  for ( uint16_t i=0; i < P1_MAX_DATAGRAM_SIZE - 10; i++ ) { // Process the datagram
+    for (uint8_t k=0; k < 9; k++ ) {
+      bool found = true;
+      for ( uint8_t j=0; j < 9; j++ ) { // Search for key
+        if ( p1_buf[i] != keys[k][j] ) {
+          found = false;
+        }
+      }
+      if ( found ) { // found the key
+        char temp[20] = "";
+        switch (k) {
+          case 0: 
+            strncpy(DSMRVersion, (const char*) p1_buf[i+8+1], 2); // copy version
+            break;
+          case 1:
+            strncpy(DSMRTimestamp, (const char*) p1_buf[i+8+1], 13); // copy timestamp
+            break;
+          case 2:
+            strncpy(temp, (const char*) p1_buf[i+8+1], 10); // copy consumption tarrif 1
+            dataEnergyConsumption1[webDataPointer] = atof(temp);
+            break;
+          case 3:
+            strncpy(temp, (const char*) p1_buf[i+8+1], 10); // copy consumption tarrif 2
+            dataEnergyConsumption2[webDataPointer] = atof(temp);
+            break;
+          case 4:
+            strncpy(temp, (const char*) p1_buf[i+8+1], 10); // copy production tarrif 1
+            dataEnergyProduction1[webDataPointer] = atof(temp);
+            break;
+          case 5:
+            strncpy(temp, (const char*) p1_buf[i+8+1], 10); // copy production tarrif 2
+            dataEnergyProduction2[webDataPointer] = atof(temp);
+            break;
+          case 6:
+            strncpy(temp, (const char*) p1_buf[i+8+4], 4); // actual tarrif
+            break;
+          case 7:
+            strncpy(temp, (const char*) p1_buf[i+8+1], 6); // actual consumption
+            dataPowerConsumption[webDataPointer] = atof(temp);
+            break;
+          case 8:
+            strncpy(temp, (const char*) p1_buf[i+8+1], 6); // actual production
+            dataPowerProduction[webDataPointer] = atof(temp);
+            break;
+        }
+      }
+    }
+  }
+  webDataPointer++;
 }
