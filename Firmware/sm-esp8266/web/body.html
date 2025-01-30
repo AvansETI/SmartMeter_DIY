@@ -36,9 +36,10 @@ const ctx_power  = document.getElementById('chart_power');
 const ctx_energy = document.getElementById('chart_energy');
 
 var data;
-
-const data_x = [60, 55, 50, 45, 40, 35, 30, 25, 20, 15, 10, 5, 0];
-const data_y = [4, 5, 4, 4, 3, 2, 6, 7, 6, 5, 4, 5, 5];
+const data_x = [];
+for ( var i=0; i < 12*3; i++ ) { // 12 data points (five minutes) three hours
+  data_x.push(i*5); // Each five minutes
+}
 
 const config = {
   type: 'line',
@@ -81,7 +82,7 @@ function getActualData() {
  });
 }
 
-function updateDataPower (v) {
+function updateDataPower () {
   chartPower.data.datasets[0].data = [];
   for ( i in data.power_consumption ) {
     chartPower.data.datasets[0].data.push(data.power_consumption[i]);
@@ -89,16 +90,18 @@ function updateDataPower (v) {
   chartPower.update();
 }
 
-function updateDataEnergy (v) {
-    chartEnergy.data.datasets[0].data.push(v);
-    chartEnergy.data.datasets[0].data.shift();
+function updateDataEnergy () {
+    chartEnergy.data.datasets[0].data = [];
+    for ( i in data.energy_consumption1 ) {
+      chartEnergy.data.datasets[0].data.push(data.energy_consumption1[i] + data.energy_consumption2[i]);
+    }
     chartEnergy.update();
 }
 
 function updateChart () {
     getActualData();
-    updateDataPower(Math.floor(Math.random() * 10) + 1);
-    updateDataEnergy(Math.floor(Math.random() * 10) + 1);
+    updateDataPower();
+    updateDataEnergy();
     console.log("I: updating chart.");
 }
 

@@ -177,7 +177,7 @@ WiFiServer tcpServer(3141);
 WiFiClient tcpServerClient;
 
 // Web server initialization
-#define WEBSERVERDATALENGTH 12*24
+#define WEBSERVERDATALENGTH 12*3
 ESP8266WebServer server(80);   // WebServer
 bool webServerInitialized = false;
 void handleRoot();             // Handle the root
@@ -421,7 +421,7 @@ Version :      DMK, Initial code
   Serial.printf("***************************************************\n\n");
   Serial.flush();
 
-/*
+
   // Set P1 port baudrate. DSMR V2 uses 9600 baud. Otherwise 115200 baud
   long baudrate = atol(app_config.p1_baudrate);
   switch(baudrate){
@@ -433,7 +433,7 @@ Version :      DMK, Initial code
       Serial.begin(115200, SERIAL_8N1);
       break;
   }
-*/
+
   #ifdef DEBUG
     Serial1.begin(115200, SERIAL_8N1);
     DEBUG_PRINTF("\n\r%s\n\r", "Debug mode ON ..." );
@@ -443,7 +443,7 @@ Version :      DMK, Initial code
   delay(2000);
   
   // Relocate Serial Port
-  //Serial.swap();
+  Serial.swap();
   
   // Initialise FSM
   initFSM(STATE_START, EV_IDLE);
@@ -1166,56 +1166,44 @@ void addWebDataP1(char* p1) {
     for (uint8_t k=0; k < 9; k++ ) {
       found = true;
       for ( uint8_t j=0; j < 9; j++ ) { // Search for key
-        //Serial.printf("%c%c ", p1[i+j], keys[k][j]);
         if ( p1[i+j] != keys[k][j] ) {
           found = false;
           break;
         }
       }
       if ( found ) { // found the key
-        //Serial.printf("\n----------(%d => i:%d, k:%d, len:%d, max:%d)\n", found, i, k, p1_length, P1_MAX_DATAGRAM_SIZE);
-        //Serial.printf("MESSAGE: '%s'\n", p1+i);
         char temp[20] = "";
         switch (k) {
           case 0:
-            Serial.printf("DSMRVersion: %.2s\n", p1+i+9+1);
             strncpy(DSMRVersion, (const char*) p1+i+9+1, 2); // copy version
             break;
           case 1:
-            Serial.printf("DSMRTimestamp: %.13s\n", p1+i+9+1);
             strncpy(DSMRTimestamp, (const char*) p1+i+9+1, 13); // copy timestamp
             break;
           case 2:
-            Serial.printf("Energy consumption 1: %.10s\n", p1+i+9+1);
             strncpy(temp, (const char*) p1+i+9+1, 10); // copy consumption tarrif 1
             dataEnergyConsumption1[webDataPointer] = atof(temp);
             break;
           case 3:
-            Serial.printf("Energy consumption 2: %.10s\n", p1+i+9+1);
             strncpy(temp, (const char*) p1+i+9+1, 10); // copy consumption tarrif 2
             dataEnergyConsumption2[webDataPointer] = atof(temp);
             break;
           case 4:
-            Serial.printf("Energy production 1: %.10s\n", p1+i+9+1);
             strncpy(temp, (const char*) p1+i+9+1, 10); // copy production tarrif 1
             dataEnergyProduction1[webDataPointer] = atof(temp);
             break;
           case 5:
-            Serial.printf("Energy production 2: %.10s\n", p1+i+9+1);
             strncpy(temp, (const char*) p1+i+9+1, 10); // copy production tarrif 2
             dataEnergyProduction2[webDataPointer] = atof(temp);
             break;
           case 6:
-            Serial.printf("Actual tarrif: %.4s\n", p1+i+9+3);
             strncpy(temp, (const char*) p1+i+9+3, 4); // actual tarrif
             break;
           case 7:
-            Serial.printf("Actual consumption: %.6s\n", p1+i+9+1);
             strncpy(temp, (const char*) p1+i+9+1, 6); // actual consumption
             dataPowerConsumption[webDataPointer] = atof(temp);
             break;
           case 8:
-            Serial.printf("Actual production: %.6s\n", p1+i+9+1);
             strncpy(temp, (const char*) p1+i+9+1, 6); // actual production
             dataPowerProduction[webDataPointer] = atof(temp);
             break;
