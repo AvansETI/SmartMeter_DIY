@@ -41,7 +41,7 @@ for ( var i=0; i < 12*3; i++ ) { // 12 data points (five minutes) three hours
   data_x.push(i*5); // Each five minutes
 }
 
-const config = {
+const configPower = {
   type: 'line',
   data: {
     labels: data_x,
@@ -58,8 +58,25 @@ const config = {
   plugins: []
 }
 
-const chartPower  = new Chart(ctx_power, config);
-const chartEnergy = new Chart(ctx_energy, config);
+const configEnergy = {
+  type: 'line',
+  data: {
+    labels: data_x,
+    datasets: [{
+        label: 'Energy (kWh)',
+        data: [],
+        fill: false,
+        borderColor: 'rgb(255, 0, 0)',
+        tension: 0.2,
+    }]},
+  options: {
+    animation: false
+  },
+  plugins: []
+}
+
+const chartPower  = new Chart(ctx_power, configPower);
+const chartEnergy = new Chart(ctx_energy, configEnergy);
 
 setInterval(updateChart, 10000);
 
