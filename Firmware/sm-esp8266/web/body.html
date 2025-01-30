@@ -83,8 +83,8 @@ function getActualData() {
 
 function updateDataPower (v) {
   chartPower.data.datasets[0].data = [];
-  for ( v in data.power_consumption ) {
-    chartPower.data.datasets[0].data.push(v);
+  for ( i in data.power_consumption ) {
+    chartPower.data.datasets[0].data.push(data.power_consumption[i]);
   }
   chartPower.update();
 }
