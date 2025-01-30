@@ -38,7 +38,7 @@ const ctx_energy = document.getElementById('chart_energy');
 var data = null;
 const data_x = [];
 for ( var i=0; i < 12*3; i++ ) { // 12 data points (five minutes) three hours
-  data_x.push(i*5); // Each five minutes
+  data_x.unshift(i*5); // Each five minutes
 }
 
 const configPower = {
