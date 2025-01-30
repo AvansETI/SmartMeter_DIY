@@ -1097,31 +1097,31 @@ $(document).ready(function(){
 /******************************************************************/
 void handleDataApi() {
   String dataJson = "{\"power_consumption\":[";
-  for ( uint16_t i=0; i < WEBSERVERDATALENGTH-1; i++ ) {
+  for ( uint16_t i=0; i < webDataPointer-1; i++ ) {
     dataJson = dataJson + dataPowerConsumption[i] + ",";
   }
-  dataJson = dataJson + dataPowerConsumption[WEBSERVERDATALENGTH-1] + "],\"power_production\":[";
-  for ( uint16_t i=0; i < WEBSERVERDATALENGTH-1; i++ ) {
+  dataJson = dataJson + dataPowerConsumption[webDataPointer-1] + "],\"power_production\":[";
+  for ( uint16_t i=0; i < webDataPointer-1; i++ ) {
     dataJson = dataJson + dataPowerProduction[i] + ",";
   }
-  dataJson = dataJson + dataPowerProduction[WEBSERVERDATALENGTH-1] + "],\"energy_consumption1\":[";
-  for ( uint16_t i=0; i < WEBSERVERDATALENGTH-1; i++ ) {
+  dataJson = dataJson + dataPowerProduction[webDataPointer-1] + "],\"energy_consumption1\":[";
+  for ( uint16_t i=0; i < webDataPointer-1; i++ ) {
     dataJson = dataJson + dataEnergyConsumption1[i] + ",";
   }
-  dataJson = dataJson + dataEnergyConsumption1[WEBSERVERDATALENGTH-1] + "],\"energy_consumption2\":[";
-  for ( uint16_t i=0; i < WEBSERVERDATALENGTH-1; i++ ) {
+  dataJson = dataJson + dataEnergyConsumption1[webDataPointer-1] + "],\"energy_consumption2\":[";
+  for ( uint16_t i=0; i < webDataPointer-1; i++ ) {
     dataJson = dataJson + dataEnergyConsumption2[i] + ",";
   }
-  dataJson = dataJson + dataEnergyConsumption2[WEBSERVERDATALENGTH-1] + "],\"energy_production1\":[";
-  for ( uint16_t i=0; i < WEBSERVERDATALENGTH-1; i++ ) {
+  dataJson = dataJson + dataEnergyConsumption2[webDataPointer-1] + "],\"energy_production1\":[";
+  for ( uint16_t i=0; i < webDataPointer-1; i++ ) {
     dataJson = dataJson + dataEnergyProduction1[i] + ",";
   }
-  dataJson = dataJson + dataEnergyProduction1[WEBSERVERDATALENGTH-1] + "],\"energy_production2\":[";
-  for ( uint16_t i=0; i < WEBSERVERDATALENGTH-1; i++ ) {
+  dataJson = dataJson + dataEnergyProduction1[webDataPointer-1] + "],\"energy_production2\":[";
+  for ( uint16_t i=0; i < webDataPointer-1; i++ ) {
     dataJson = dataJson + dataEnergyProduction2[i] + ",";
   }
-  dataJson = dataJson + dataEnergyProduction2[WEBSERVERDATALENGTH-1] + "],\"DSMRVersion\":\"" + DSMRVersion +
-             ",\"DSMRTimestamp\":\"" + DSMRTimestamp + ",\"p1\":\"" + p1_buf + "\"}";
+  dataJson = dataJson + dataEnergyProduction2[webDataPointer-1] + "],\"DSMRVersion\":\"" + DSMRVersion +
+             "\",\"DSMRTimestamp\":\"" + DSMRTimestamp + "\"}";
 
   server.send(200, "text/json", dataJson);
 }

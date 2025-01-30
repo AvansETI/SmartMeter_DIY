@@ -35,6 +35,8 @@
 const ctx_power  = document.getElementById('chart_power');
 const ctx_energy = document.getElementById('chart_energy');
 
+var data;
+
 const data_x = [60, 55, 50, 45, 40, 35, 30, 25, 20, 15, 10, 5, 0];
 const data_y = [4, 5, 4, 4, 3, 2, 6, 7, 6, 5, 4, 5, 5];
 
@@ -61,15 +63,13 @@ const chartEnergy = new Chart(ctx_energy, config);
 setInterval(updateChart, 10000);
 
 function getActualData() {
-  console.log("Get actual data...");
  $.ajax({
   url: "/data",
   data: {
   },
   success: function ( result ) {
    try {
-    console.log(result);
-    var actualData = JSON.parse(result);
+    data = result;
 
    } catch (error) {
     console.log("E: " + error);
@@ -82,9 +82,12 @@ function getActualData() {
 }
 
 function updateDataPower (v) {
+  chartPower.data.datasets[0].data = [];
+
+  for ( v in data.power_consumption ) {
     chartPower.data.datasets[0].data.push(v);
-    chartPower.data.datasets[0].data.shift();
-    chartPower.update();
+  }
+  chartPower.update();
 }
 
 function updateDataEnergy (v) {
