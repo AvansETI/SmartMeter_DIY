@@ -35,7 +35,7 @@
 const ctx_power  = document.getElementById('chart_power');
 const ctx_energy = document.getElementById('chart_energy');
 
-var data;
+var data = null;
 const data_x = [];
 for ( var i=0; i < 12*3; i++ ) { // 12 data points (five minutes) three hours
   data_x.push(i*5); // Each five minutes
@@ -78,7 +78,7 @@ const configEnergy = {
 const chartPower  = new Chart(ctx_power, configPower);
 const chartEnergy = new Chart(ctx_energy, configEnergy);
 
-setInterval(updateChart, 10000);
+setInterval(updateChart, 5000);
 
 function getActualData() {
  $.ajax({
@@ -108,18 +108,19 @@ function updateDataPower () {
 }
 
 function updateDataEnergy () {
-    chartEnergy.data.datasets[0].data = [];
-    for ( i in data.energy_consumption1 ) {
-      chartEnergy.data.datasets[0].data.push(data.energy_consumption1[i] + data.energy_consumption2[i]);
-    }
-    chartEnergy.update();
+  chartEnergy.data.datasets[0].data = [];
+  for ( i in data.energy_consumption1 ) {
+    chartEnergy.data.datasets[0].data.push(data.energy_consumption1[i] + data.energy_consumption2[i]);
+  }
+  chartEnergy.update();
 }
 
 function updateChart () {
-    getActualData();
+  getActualData();
+  if ( data != null ) {
     updateDataPower();
     updateDataEnergy();
     console.log("I: updating chart.");
+  }
 }
-
   </script>
