@@ -61,12 +61,14 @@ const chartEnergy = new Chart(ctx_energy, config);
 setInterval(updateChart, 10000);
 
 function getActualData() {
+  console.log("Get actual data...");
  $.ajax({
-  url: "http://localhost/data",
+  url: "/data",
   data: {
   },
   success: function ( result ) {
    try {
+    console.log(result);
     var actualData = JSON.parse(result);
 
    } catch (error) {

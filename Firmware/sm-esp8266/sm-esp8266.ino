@@ -8,6 +8,7 @@
   V1.2: Updated to latest version ArduinoJson library (feb 2020)
   V1.3: Updated to latest PubSubClient (jan 2021)
   V1.4: Changed server location (sendlab.nl), removed credentials
+  V1.5: Added webserver to get insight into the smartmeter readings and added TCP/IP service to get actual P1 message (jan 2025)
 
   Installation Arduino IDE:
   - How to get the Wemos installed in the Ardiuno IDE: https://siytek.com/wemos-d1-mini-arduino-wifi/
@@ -39,7 +40,6 @@
   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, 
   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN 
   THE SOFTWARE.
-
   -------------------------------------------------------------------------*/
 
 #include <ESP8266WiFi.h>
@@ -86,6 +86,44 @@
 
 // Minimun delay between mqtt publish events. Prevents mqtt spam e.g. DSMR 5.0 updates every second!
 #define MQTT_TOPIC_UPDATE_RATE_MS  20000
+
+// Test: kan weg
+char p1_test[] = R"(/Ene5\T211 ESMR 5.0
+
+1-3:0.2.8(50)
+0-0:1.0.0(250130211729W)
+0-0:96.1.1(4530303632303030303130363330373232)
+1-0:1.8.1(008901.098*kWh)
+1-0:1.8.2(005439.970*kWh)
+1-0:2.8.1(002331.443*kWh)
+1-0:2.8.2(005912.033*kWh)
+0-0:96.14.0(0001)
+1-0:1.7.0(01.865*kW)
+1-0:2.7.0(00.000*kW)
+0-0:96.7.21(00017)
+0-0:96.7.9(00007)
+1-0:99.97.0(2)(0-0:96.7.19)(230621102410S)(0000004757*s)(221007100958S)(0000024711*s)
+1-0:32.32.0(00002)
+1-0:52.32.0(00002)
+1-0:72.32.0(00004)
+1-0:32.36.0(00000)
+1-0:52.36.0(00000)
+1-0:72.36.0(00000)
+0-0:96.13.0()
+1-0:32.7.0(222.0*V)
+1-0:52.7.0(227.0*V)
+1-0:72.7.0(223.0*V)
+1-0:31.7.0(003*A)
+1-0:51.7.0(002*A)
+1-0:71.7.0(003*A)
+1-0:21.7.0(00.655*kW)
+1-0:41.7.0(00.631*kW)
+1-0:61.7.0(00.578*kW)
+1-0:22.7.0(00.000*kW)
+1-0:42.7.0(00.000*kW)
+1-0:62.7.0(00.000*kW)
+!D492
+)";
 
 // Local variables
 uint32_t cur=0, prev=0;
@@ -134,6 +172,10 @@ PubSubClient mqttClient("", 0, wifiClient);
 char p1_buf[P1_MAX_DATAGRAM_SIZE]; // Complete P1 telegram
 char *p1;
 
+// TCP/IP Server
+WiFiServer tcpServer(3141);
+WiFiClient tcpServerClient;
+
 // Web server initialization
 #define WEBSERVERDATALENGTH 12*24
 ESP8266WebServer server(80);   // WebServer
@@ -150,7 +192,7 @@ float dataEnergyConsumption1[WEBSERVERDATALENGTH]; // Variable to store the actu
 float dataEnergyConsumption2[WEBSERVERDATALENGTH]; // Variable to store the actual energy data five minute data 12 data points each hour
 float dataEnergyProduction1[WEBSERVERDATALENGTH]; // Variable to store the actual energy data five minute data 12 data points each hour
 float dataEnergyProduction2[WEBSERVERDATALENGTH]; // Variable to store the actual energy data five minute data 12 data points each hour
-void addWebDataP1();
+void addWebDataP1(char* p1);
 
 /* Prototype FSM functions. */
 void start_pre(void);
@@ -238,6 +280,8 @@ Version :      DMK, Initial code
    shouldSaveConfig = true;
 }
 
+// kan weg
+int _timer;
 
 /******************************************************************/
 void setup() 
@@ -339,6 +383,9 @@ Version :      DMK, Initial code
     writeAppConfig(&app_config);
   }
 
+  // Setup TCP/IP server
+  tcpServer.begin();
+
   // Always print config to terminal before swapping serial port
   Serial.begin(115200, SERIAL_8N1);
 
@@ -357,13 +404,15 @@ Version :      DMK, Initial code
   Serial.printf("\tmqtt_topic      : %s\n", mqtt_topic);
   Serial.printf("\tmqtt_remote_host: %s\n", app_config.mqtt_remote_host);
   Serial.printf("\tmqtt_remote_port: %s\n", app_config.mqtt_remote_port);
+  Serial.printf("\tIP address      : %s\n", WiFi.localIP().toString().c_str());
 
   Serial.printf("DSMR settings\n");
   Serial.printf("\tP1 Baudrate     : %s baud\n", app_config.p1_baudrate);
 
   // mDNS Service
   if ( MDNS.begin("diy_smartmeter") ) { 
-    MDNS.addService("http", "tcp", 80);
+    MDNS.addService("http", "tcp", 80);   // Webserver
+    MDNS.addService("http", "tcp", 3141); // TCP/IP P1 data server
     Serial.println("\nmDNS: Started");
   } else {
     Serial.println("\nmDNS: Error");
@@ -372,6 +421,7 @@ Version :      DMK, Initial code
   Serial.printf("***************************************************\n\n");
   Serial.flush();
 
+/*
   // Set P1 port baudrate. DSMR V2 uses 9600 baud. Otherwise 115200 baud
   long baudrate = atol(app_config.p1_baudrate);
   switch(baudrate){
@@ -383,7 +433,7 @@ Version :      DMK, Initial code
       Serial.begin(115200, SERIAL_8N1);
       break;
   }
-
+*/
   #ifdef DEBUG
     Serial1.begin(115200, SERIAL_8N1);
     DEBUG_PRINTF("\n\r%s\n\r", "Debug mode ON ..." );
@@ -393,10 +443,13 @@ Version :      DMK, Initial code
   delay(2000);
   
   // Relocate Serial Port
-  Serial.swap();
+  //Serial.swap();
   
   // Initialise FSM
   initFSM(STATE_START, EV_IDLE);
+
+  // Kan weg
+  _timer = millis();
 }
 
 /******************************************************************/
@@ -448,10 +501,35 @@ Version :      DMK, Initial code
     }
   }
 
+  // Handle TCP/IP server
+  if (tcpServer.hasClient() ) {
+    if ( !tcpServerClient || !tcpServerClient.connected() ) { // Check if free or disconnected
+      if ( tcpServerClient ) {
+        tcpServerClient.stop();
+      }
+      tcpServerClient = tcpServer.available();
+      char t[] = "Smartmeter P1\n";
+      tcpServerClient.write(t, strlen(t));
+      DEBUG_PRINTF("%s\n", "TCP/IP Server: Client connected");
+
+    } else { // Only one client is able to connect
+      DEBUG_PRINTF("%s\n", "TCP/IP Server: Client refused");
+    }
+  }
+
+  // Test: Kan weg
+  if ( millis() > _timer + 5000 ) {
+    addWebDataP1(p1_test);
+    _timer = millis();
+  }
+
   // Capture P1 messages. If P1 msg is available raise MQTT event
   if( true == capture_p1() ) {
-    addWebDataP1();
+    addWebDataP1(p1_buf);
     raiseEvent(EV_P1_AVAILABLE);
+    if ( tcpServerClient.connected() ) { // Send the data to the connected client
+      tcpServerClient.write(p1_buf, strlen(p1_buf));
+    }
   }
 
   // 
@@ -1018,16 +1096,33 @@ $(document).ready(function(){
 
 /******************************************************************/
 void handleDataApi() {
-  String dataJson = "{\"power_consumption\": [";//0, 1, 2, 3, 4, 5], \"energy\": [5, 4, 3, 2, 1, 0]}";
+  String dataJson = "{\"power_consumption\":[";
   for ( uint16_t i=0; i < WEBSERVERDATALENGTH-1; i++ ) {
-    dataJson = dataJson + dataPowerConsumption[i] + ", ";
+    dataJson = dataJson + dataPowerConsumption[i] + ",";
   }
-  dataJson = dataJson + dataPowerConsumption[WEBSERVERDATALENGTH-1] + "], \"power_production\": [";
+  dataJson = dataJson + dataPowerConsumption[WEBSERVERDATALENGTH-1] + "],\"power_production\":[";
   for ( uint16_t i=0; i < WEBSERVERDATALENGTH-1; i++ ) {
-    dataJson = dataJson + dataPowerProduction[i] + ", ";
+    dataJson = dataJson + dataPowerProduction[i] + ",";
   }
-  // TODO: aanvullen
-  dataJson = dataJson + dataPowerProduction[WEBSERVERDATALENGTH-1] + "], \"p1\": \"" + p1_buf + "\"}";
+  dataJson = dataJson + dataPowerProduction[WEBSERVERDATALENGTH-1] + "],\"energy_consumption1\":[";
+  for ( uint16_t i=0; i < WEBSERVERDATALENGTH-1; i++ ) {
+    dataJson = dataJson + dataEnergyConsumption1[i] + ",";
+  }
+  dataJson = dataJson + dataEnergyConsumption1[WEBSERVERDATALENGTH-1] + "],\"energy_consumption2\":[";
+  for ( uint16_t i=0; i < WEBSERVERDATALENGTH-1; i++ ) {
+    dataJson = dataJson + dataEnergyConsumption2[i] + ",";
+  }
+  dataJson = dataJson + dataEnergyConsumption2[WEBSERVERDATALENGTH-1] + "],\"energy_production1\":[";
+  for ( uint16_t i=0; i < WEBSERVERDATALENGTH-1; i++ ) {
+    dataJson = dataJson + dataEnergyProduction1[i] + ",";
+  }
+  dataJson = dataJson + dataEnergyProduction1[WEBSERVERDATALENGTH-1] + "],\"energy_production2\":[";
+  for ( uint16_t i=0; i < WEBSERVERDATALENGTH-1; i++ ) {
+    dataJson = dataJson + dataEnergyProduction2[i] + ",";
+  }
+  dataJson = dataJson + dataEnergyProduction2[WEBSERVERDATALENGTH-1] + "],\"DSMRVersion\":\"" + DSMRVersion +
+             ",\"DSMRTimestamp\":\"" + DSMRTimestamp + ",\"p1\":\"" + p1_buf + "\"}";
+
   server.send(200, "text/json", dataJson);
 }
 
@@ -1037,50 +1132,10 @@ void handleNotFound () {
 }
 
 /******************************************************************/
-/*
-1-3:0.2.8(50)
-0-0:1.0.0(241205223051W)
-0-0:96.1.1(4530303632303030303130363330373232)
-1-0:1.8.1(007812.965*kWh)
-1-0:1.8.2(004695.310*kWh)
-1-0:2.8.1(002313.919*kWh)
-1-0:2.8.2(005836.025*kWh)
-0-0:96.14.0(0001)
-1-0:1.7.0(00.670*kW)
-1-0:2.7.0(00.000*kW)
-0-0:96.7.21(00017)
-0-0:96.7.9(00007)
-1-0:99.97.0(2)(0-0:96.7.19)(230621102410S)(0000004757*s)(221007100958S)(0000024711*s)
-1-0:32.32.0(00002)
-1-0:52.32.0(00002)
-1-0:72.32.0(00004)
-1-0:32.36.0(00000)
-1-0:52.36.0(00000)
-1-0:72.36.0(00000)
-0-0:96.13.0()
-1-0:32.7.0(225.0*V)
-1-0:52.7.0(225.0*V)
-1-0:72.7.0(226.0*V)
-1-0:31.7.0(002*A)
-1-0:51.7.0(001*A)
-1-0:71.7.0(002*A)
-1-0:21.7.0(00.384*kW)
-1-0:41.7.0(00.156*kW)
-1-0:61.7.0(00.129*kW)
-1-0:22.7.0(00.000*kW)
-1-0:42.7.0(00.000*kW)
-1-0:62.7.0(00.000*kW)
-0-1:24.1.0(003)
-0-1:96.1.0(4730303533303033363734313433343137)
-0-1:24.2.1(241205223000W)(06326.869*m3)
-!63B9
-"}
-*/
 //https://github.com/energietransitie/dsmr-info/blob/main/dsmr-p1-specs.csv
 //https://github.com/energietransitie/dsmr-info/blob/main/dsmr-e-meters.csv
 //https://github.com/reneklootwijk/node-dsmr/tree/master
-void addWebDataP1() {
-  DEBUG_PRINTF("P1: %s\n\r", p1_buf);
+void addWebDataP1(char* p1) {
   char keys[9][10] = {
     "1-3:0.2.8", // DMSR version -> 1-3:0.2.8(50)
     "0-0:1.0.0", // Timestamp    -> 0-0:1.0.0(241221224725W)
@@ -1093,60 +1148,75 @@ void addWebDataP1() {
     "1-0:2.7.0", // Actual production -> 1-0:2.7.0(00.000*kW)  
   };
 
-  if ( webDataPointer == P1_MAX_DATAGRAM_SIZE ) { // shift the values to the left
-    for ( uint16_t i=0; i < P1_MAX_DATAGRAM_SIZE - 1; i++ ) {
+  if ( webDataPointer == WEBSERVERDATALENGTH ) { // shift the values to the left
+    for ( uint16_t i=0; i < WEBSERVERDATALENGTH - 1; i++ ) {
       dataPowerConsumption[i] = dataPowerConsumption[i+1];
       dataPowerProduction[i] = dataPowerProduction[i+1];
       dataEnergyConsumption1[i] = dataEnergyConsumption1[i+1];
       dataEnergyConsumption2[i] = dataEnergyConsumption2[i+1];
       dataEnergyProduction1[i] = dataEnergyProduction1[i+1];
       dataEnergyProduction2[i] = dataEnergyProduction2[i+1];
-      webDataPointer = P1_MAX_DATAGRAM_SIZE - 1; // Set pointer to last element
+      webDataPointer = WEBSERVERDATALENGTH - 1; // Set pointer to last element
     }
   }
 
-  for ( uint16_t i=0; i < P1_MAX_DATAGRAM_SIZE - 10; i++ ) { // Process the datagram
+  bool found;
+  size_t p1_length = strlen(p1);
+  for ( uint16_t i=0; i < p1_length - 10; i++ ) { // Process the datagram
     for (uint8_t k=0; k < 9; k++ ) {
-      bool found = true;
+      found = true;
       for ( uint8_t j=0; j < 9; j++ ) { // Search for key
-        if ( p1_buf[i] != keys[k][j] ) {
+        //Serial.printf("%c%c ", p1[i+j], keys[k][j]);
+        if ( p1[i+j] != keys[k][j] ) {
           found = false;
+          break;
         }
       }
       if ( found ) { // found the key
+        //Serial.printf("\n----------(%d => i:%d, k:%d, len:%d, max:%d)\n", found, i, k, p1_length, P1_MAX_DATAGRAM_SIZE);
+        //Serial.printf("MESSAGE: '%s'\n", p1+i);
         char temp[20] = "";
         switch (k) {
-          case 0: 
-            strncpy(DSMRVersion, (const char*) p1_buf[i+8+1], 2); // copy version
+          case 0:
+            Serial.printf("DSMRVersion: %.2s\n", p1+i+9+1);
+            strncpy(DSMRVersion, (const char*) p1+i+9+1, 2); // copy version
             break;
           case 1:
-            strncpy(DSMRTimestamp, (const char*) p1_buf[i+8+1], 13); // copy timestamp
+            Serial.printf("DSMRTimestamp: %.13s\n", p1+i+9+1);
+            strncpy(DSMRTimestamp, (const char*) p1+i+9+1, 13); // copy timestamp
             break;
           case 2:
-            strncpy(temp, (const char*) p1_buf[i+8+1], 10); // copy consumption tarrif 1
+            Serial.printf("Energy consumption 1: %.10s\n", p1+i+9+1);
+            strncpy(temp, (const char*) p1+i+9+1, 10); // copy consumption tarrif 1
             dataEnergyConsumption1[webDataPointer] = atof(temp);
             break;
           case 3:
-            strncpy(temp, (const char*) p1_buf[i+8+1], 10); // copy consumption tarrif 2
+            Serial.printf("Energy consumption 2: %.10s\n", p1+i+9+1);
+            strncpy(temp, (const char*) p1+i+9+1, 10); // copy consumption tarrif 2
             dataEnergyConsumption2[webDataPointer] = atof(temp);
             break;
           case 4:
-            strncpy(temp, (const char*) p1_buf[i+8+1], 10); // copy production tarrif 1
+            Serial.printf("Energy production 1: %.10s\n", p1+i+9+1);
+            strncpy(temp, (const char*) p1+i+9+1, 10); // copy production tarrif 1
             dataEnergyProduction1[webDataPointer] = atof(temp);
             break;
           case 5:
-            strncpy(temp, (const char*) p1_buf[i+8+1], 10); // copy production tarrif 2
+            Serial.printf("Energy production 2: %.10s\n", p1+i+9+1);
+            strncpy(temp, (const char*) p1+i+9+1, 10); // copy production tarrif 2
             dataEnergyProduction2[webDataPointer] = atof(temp);
             break;
           case 6:
-            strncpy(temp, (const char*) p1_buf[i+8+4], 4); // actual tarrif
+            Serial.printf("Actual tarrif: %.4s\n", p1+i+9+3);
+            strncpy(temp, (const char*) p1+i+9+3, 4); // actual tarrif
             break;
           case 7:
-            strncpy(temp, (const char*) p1_buf[i+8+1], 6); // actual consumption
+            Serial.printf("Actual consumption: %.6s\n", p1+i+9+1);
+            strncpy(temp, (const char*) p1+i+9+1, 6); // actual consumption
             dataPowerConsumption[webDataPointer] = atof(temp);
             break;
           case 8:
-            strncpy(temp, (const char*) p1_buf[i+8+1], 6); // actual production
+            Serial.printf("Actual production: %.6s\n", p1+i+9+1);
+            strncpy(temp, (const char*) p1+i+9+1, 6); // actual production
             dataPowerProduction[webDataPointer] = atof(temp);
             break;
         }
