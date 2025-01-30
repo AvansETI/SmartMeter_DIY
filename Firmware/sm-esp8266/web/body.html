@@ -46,7 +46,7 @@ const config = {
     labels: data_x,
     datasets: [{
         label: 'Power (kW)',
-        data: data_y,
+        data: [],
         fill: false,
         borderColor: 'rgb(255, 0, 0)',
         tension: 0.2,
@@ -83,7 +83,6 @@ function getActualData() {
 
 function updateDataPower (v) {
   chartPower.data.datasets[0].data = [];
-
   for ( v in data.power_consumption ) {
     chartPower.data.datasets[0].data.push(v);
   }
