@@ -371,8 +371,8 @@ Version :      DMK, Initial code
 
   // mDNS Service
   if ( MDNS.begin("diy_smartmeter") ) { 
-    MDNS.addService("http", "tcp", 80);   // Webserver
-    MDNS.addService("http", "tcp", 3141); // TCP/IP P1 data server
+    MDNS.addService("http", "tcp", 80);     // Webserver
+    MDNS.addService("p1data", "tcp", 3141); // TCP/IP P1 data server
     Serial.println("\nmDNS: Started");
   } else {
     Serial.println("\nmDNS: Error");
