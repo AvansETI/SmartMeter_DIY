@@ -451,6 +451,9 @@ Version :      DMK, Initial code
       mqttClient.loop();
     }
 
+    // Handle mDNS
+    MDNS.update();
+
     // Handle HTTP server
     if ( webServerInitialized ) {
       server.handleClient(); // Listen for HTTP requests from clients
