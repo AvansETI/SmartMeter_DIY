@@ -78,6 +78,7 @@ const configEnergy = {
 const chartPower  = new Chart(ctx_power, configPower);
 const chartEnergy = new Chart(ctx_energy, configEnergy);
 
+getActualData();
 setInterval(getActualData, 1000*60);
 
 function getActualData() {
