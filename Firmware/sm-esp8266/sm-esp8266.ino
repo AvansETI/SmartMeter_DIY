@@ -87,44 +87,6 @@
 // Minimun delay between mqtt publish events. Prevents mqtt spam e.g. DSMR 5.0 updates every second!
 #define MQTT_TOPIC_UPDATE_RATE_MS  20000
 
-// Test: kan weg
-char p1_test[] = R"(/Ene5\T211 ESMR 5.0
-
-1-3:0.2.8(50)
-0-0:1.0.0(250130211729W)
-0-0:96.1.1(4530303632303030303130363330373232)
-1-0:1.8.1(008901.098*kWh)
-1-0:1.8.2(005439.970*kWh)
-1-0:2.8.1(002331.443*kWh)
-1-0:2.8.2(005912.033*kWh)
-0-0:96.14.0(0001)
-1-0:1.7.0(01.865*kW)
-1-0:2.7.0(00.000*kW)
-0-0:96.7.21(00017)
-0-0:96.7.9(00007)
-1-0:99.97.0(2)(0-0:96.7.19)(230621102410S)(0000004757*s)(221007100958S)(0000024711*s)
-1-0:32.32.0(00002)
-1-0:52.32.0(00002)
-1-0:72.32.0(00004)
-1-0:32.36.0(00000)
-1-0:52.36.0(00000)
-1-0:72.36.0(00000)
-0-0:96.13.0()
-1-0:32.7.0(222.0*V)
-1-0:52.7.0(227.0*V)
-1-0:72.7.0(223.0*V)
-1-0:31.7.0(003*A)
-1-0:51.7.0(002*A)
-1-0:71.7.0(003*A)
-1-0:21.7.0(00.655*kW)
-1-0:41.7.0(00.631*kW)
-1-0:61.7.0(00.578*kW)
-1-0:22.7.0(00.000*kW)
-1-0:42.7.0(00.000*kW)
-1-0:62.7.0(00.000*kW)
-!D492
-)";
-
 // Local variables
 uint32_t cur=0, prev=0;
 WiFiManager wifiManager;
@@ -178,6 +140,7 @@ WiFiClient tcpServerClient;
 
 // Web server initialization
 #define WEBSERVERDATALENGTH 12*3
+#define WEBSERVERDATASAMPLERATE 1000*60 // 5 minutes
 ESP8266WebServer server(80);   // WebServer
 bool webServerInitialized = false;
 void handleRoot();             // Handle the root
@@ -193,6 +156,7 @@ float dataEnergyConsumption2[WEBSERVERDATALENGTH]; // Variable to store the actu
 float dataEnergyProduction1[WEBSERVERDATALENGTH]; // Variable to store the actual energy data five minute data 12 data points each hour
 float dataEnergyProduction2[WEBSERVERDATALENGTH]; // Variable to store the actual energy data five minute data 12 data points each hour
 void addWebDataP1(char* p1);
+uint32_t webserverTimer = 0;
 
 /* Prototype FSM functions. */
 void start_pre(void);
@@ -266,7 +230,6 @@ MEASUREMENT_STRUCT payload = {""};
 // mqtt topic strings: eti-sm
 char mqtt_topic[128];
 
-
 /******************************************************************/
 void saveConfigCallback () 
 /* 
@@ -279,9 +242,6 @@ Version :      DMK, Initial code
 {
    shouldSaveConfig = true;
 }
-
-// kan weg
-int _timer;
 
 /******************************************************************/
 void setup() 
@@ -421,7 +381,6 @@ Version :      DMK, Initial code
   Serial.printf("***************************************************\n\n");
   Serial.flush();
 
-
   // Set P1 port baudrate. DSMR V2 uses 9600 baud. Otherwise 115200 baud
   long baudrate = atol(app_config.p1_baudrate);
   switch(baudrate){
@@ -447,9 +406,6 @@ Version :      DMK, Initial code
   
   // Initialise FSM
   initFSM(STATE_START, EV_IDLE);
-
-  // Kan weg
-  _timer = millis();
 }
 
 /******************************************************************/
@@ -510,26 +466,19 @@ Version :      DMK, Initial code
       tcpServerClient = tcpServer.available();
       char t[] = "Smartmeter P1\n";
       tcpServerClient.write(t, strlen(t));
-      DEBUG_PRINTF("%s\n", "TCP/IP Server: Client connected");
-
-    } else { // Only one client is able to connect
-      DEBUG_PRINTF("%s\n", "TCP/IP Server: Client refused");
     }
-  }
-
-  // Test: Kan weg
-  if ( millis() > _timer + 5000 ) {
-    addWebDataP1(p1_test);
-    _timer = millis();
   }
 
   // Capture P1 messages. If P1 msg is available raise MQTT event
   if( true == capture_p1() ) {
-    addWebDataP1(p1_buf);
-    raiseEvent(EV_P1_AVAILABLE);
+    if ( millis() > webserverTimer + WEBSERVERDATASAMPLERATE ) {
+      addWebDataP1(p1_buf);
+      webserverTimer = millis();
+    }
     if ( tcpServerClient.connected() ) { // Send the data to the connected client
       tcpServerClient.write(p1_buf, strlen(p1_buf));
     }
+    raiseEvent(EV_P1_AVAILABLE);
   }
 
   // 

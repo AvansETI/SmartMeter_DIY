@@ -78,8 +78,6 @@ const configEnergy = {
 const chartPower  = new Chart(ctx_power, configPower);
 const chartEnergy = new Chart(ctx_energy, configEnergy);
 
-setInterval(updateChart, 5000);
-
 function getActualData() {
  $.ajax({
   url: "/data",
@@ -88,6 +86,7 @@ function getActualData() {
   success: function ( result ) {
    try {
     data = result;
+    setInterval(updateChart, 5000);
 
    } catch (error) {
     console.log("E: " + error);
@@ -123,4 +122,6 @@ function updateChart () {
     console.log("I: updating chart.");
   }
 }
+
+getActualData();
   </script>
