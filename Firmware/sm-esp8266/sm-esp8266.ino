@@ -403,6 +403,9 @@ Version :      DMK, Initial code
       // Handle MQTT loop
       mqttClient.loop();
     }
+
+    // Handle mDNS
+    MDNS.update();
   }
 
   // Capture P1 messages. If P1 msg is available raise MQTT event
