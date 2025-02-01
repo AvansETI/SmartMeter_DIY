@@ -391,7 +391,7 @@ Version :      DMK, Initial code
   Serial.printf("\tP1 Baudrate     : %s baud\n", app_config.p1_baudrate);
 
   // Setup mDNS Service
-  if ( MDNS.begin("diy_smartmeter2") ) { 
+  if ( MDNS.begin("diy_smartmeter") ) { 
     MDNS.addService("http", "tcp", 80);     // Webserver
     MDNS.addService("p1data", "tcp", 3141); // TCP/IP P1 data provider server
     Serial.println("mDNS: Started");
