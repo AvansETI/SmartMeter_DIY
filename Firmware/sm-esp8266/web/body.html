@@ -90,7 +90,7 @@ setInterval(getActualData, 1000*60);
 
 function getActualData() {
  $.ajax({
-  url: "data",
+  url: "/data",
   data: {
   },
   success: function ( result ) {
