@@ -1,0 +1,134 @@
+  <nav class="navbar navbar-expand-lg bg-body-tertiary">
+   <div class="container-fluid">
+    <a class="navbar-brand" href="#">SmartMeter</a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+     <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+     <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+      <li class="nav-item">
+       <a class="nav-link active" aria-current="page" href="#">Menu 1</a>
+      </li>
+      <li class="nav-item">
+       <a class="nav-link" href="#">Menu 2</a>
+      </li>
+     </ul>
+     <form class="d-flex">
+      Dashboard v0.1
+     </form>
+    </div>
+   </div>
+  </nav>
+
+  <div class="container text-center">
+   <div class="row align-items-start">
+    <div class="col">
+     <canvas id="chart_power" style="background-color: #BBBBBB; margin-top: 25px;"></canvas>
+    </div>
+    <div class="col">
+     <canvas id="chart_energy" style="background-color: #BBBBBB; margin-top: 25px;"></canvas>
+    </div>
+   </div>
+  </div>
+
+  <script>
+const ctx_power  = document.getElementById('chart_power');
+const ctx_energy = document.getElementById('chart_energy');
+
+var data = null;
+const data_x = [];
+for ( var i=0; i < 12*3; i++ ) { // 12 data points (five minutes) three hours
+  data_x.unshift(i*5); // Each five minutes
+}
+
+const configPower = {
+  type: 'line',
+  data: {
+    labels: data_x,
+    datasets: [{
+        label: 'Consumption (kW)',
+        data: [],
+        fill: false,
+        borderColor: 'rgb(255, 0, 0)',
+        tension: 0.2,
+    },
+    {
+        label: 'Production (kW)',
+        data: [],
+        fill: false,
+        borderColor: 'rgb(0, 0, 255)',
+        tension: 0.2,
+    }]},
+  options: {
+    animation: false
+  },
+  plugins: []
+}
+
+const configEnergy = {
+  type: 'line',
+  data: {
+    labels: data_x,
+    datasets: [{
+        label: 'Energy (kWh)',
+        data: [],
+        fill: false,
+        borderColor: 'rgb(255, 0, 0)',
+        tension: 0.2,
+    }]},
+  options: {
+    animation: false
+  },
+  plugins: []
+}
+
+const chartPower  = new Chart(ctx_power, configPower);
+const chartEnergy = new Chart(ctx_energy, configEnergy);
+
+getActualData();
+setInterval(getActualData, 1000*60);
+
+function getActualData() {
+ $.ajax({
+  url: "/data",
+  data: {
+  },
+  success: function ( result ) {
+    data = result;
+    updateChart();
+  },
+  error: function ( error ) {
+   console.log("E: Could not fetch the actual data.");
+  }
+ });
+}
+
+function updateDataPower () {
+  chartPower.data.datasets[0].data = [];
+  for ( i in data.power_consumption ) {
+    chartPower.data.datasets[0].data.push(data.power_consumption[i]);
+  }
+  chartPower.data.datasets[1].data = [];
+  for ( i in data.power_production ) {
+    chartPower.data.datasets[1].data.push(data.power_production[i]);
+  }
+  chartPower.update();
+}
+
+function updateDataEnergy () {
+  chartEnergy.data.datasets[0].data = [];
+  for ( i in data.energy_consumption1 ) {
+    chartEnergy.data.datasets[0].data.push(data.energy_consumption1[i] + data.energy_consumption2[i]);
+  }
+  chartEnergy.update();
+}
+
+function updateChart () {
+  if ( data != null ) {
+    updateDataPower();
+    updateDataEnergy();
+    console.log("I: updating chart.");
+  }
+}
+
+  </script>
