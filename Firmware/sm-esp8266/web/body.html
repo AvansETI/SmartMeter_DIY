@@ -110,7 +110,7 @@ function updateDataPower () {
   }
   chartPower.data.datasets[1].data = [];
   for ( i in data.power_production ) {
-    chartPower.data.datasets[1].data.push(data.power_productio[i]);
+    chartPower.data.datasets[1].data.push(data.power_production[i]);
   }
   chartPower.update();
 }
