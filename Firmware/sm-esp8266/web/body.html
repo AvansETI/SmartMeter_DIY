@@ -90,17 +90,12 @@ setInterval(getActualData, 1000*60);
 
 function getActualData() {
  $.ajax({
-  url: "/data",
+  url: "data",
   data: {
   },
   success: function ( result ) {
-   try {
     data = result;
     updateChart();
-
-   } catch (error) {
-    console.log("E: " + error);
-   }
   },
   error: function ( error ) {
    console.log("E: Could not fetch the actual data.");
@@ -117,7 +112,6 @@ function updateDataPower () {
   for ( i in data.power_production ) {
     chartPower.data.datasets[1].data.push(data.power_productio[i]);
   }
-
   chartPower.update();
 }
 
