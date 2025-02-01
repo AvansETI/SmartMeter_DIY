@@ -8,7 +8,9 @@
   V1.2: Updated to latest version ArduinoJson library (feb 2020)
   V1.3: Updated to latest PubSubClient (jan 2021)
   V1.4: Changed server location (sendlab.nl), removed credentials
-  V1.5: Added webserver to get insight into the smartmeter readings and added TCP/IP service to get actual P1 message (jan 2025)
+  V1.5: Added webserver to get insight into the smartmeter readings, added
+        TCP/IP service (port 3141) to get actual P1 message and fixed mDNS
+        so devices can be found by diy_smartmeter.local on your network (ms: jan 2025)
 
   Installation Arduino IDE:
   - How to get the Wemos installed in the Ardiuno IDE: https://siytek.com/wemos-d1-mini-arduino-wifi/
@@ -122,10 +124,11 @@ typedef struct {
 
 APP_CONFIG_STRUCT app_config;
 
-WiFiClient wifiClient;
+// Wifi client used for the MQTT library
+WiFiClient mqttWifiClient;
 
 // Only with some dummy values seems to work ... instead of mqttClient();
-PubSubClient mqttClient("", 0, wifiClient);
+PubSubClient mqttClient("", 0, mqttWifiClient);
 
 #define P1_TELEGRAM_SIZE   2048
 
@@ -134,29 +137,31 @@ PubSubClient mqttClient("", 0, wifiClient);
 char p1_buf[P1_MAX_DATAGRAM_SIZE]; // Complete P1 telegram
 char *p1;
 
-// TCP/IP Server
-WiFiServer tcpServer(3141);
-WiFiClient tcpServerClient;
+// TCP/IP server to implement the P1 datagram provider variables
+WiFiServer tcpServer(3141); // TCP/IP server
+WiFiClient tcpServerClient; // TCP/IP connected client, only one client is able to connect to the server
 
-// Web server initialization
-#define WEBSERVERDATALENGTH 12*3
-#define WEBSERVERDATASAMPLERATE 1000*60 // 5 minutes
+// HTTP Web server variables
+#define WEBSERVERDATALENGTH 12*3 // Data points that will be stored
+#define WEBSERVERDATASAMPLERATE 1000*60 // Sample rate to collect the data points in ms
 ESP8266WebServer server(80);   // WebServer
-bool webServerInitialized = false;
-void handleRoot();             // Handle the root
-void handleDataApi();          // Handle the update data api
-void handleNotFound();         // Handle not found page
-uint16_t webDataPointer = 0;
+bool webServerInitialized = false; 
+uint16_t webDataPointer = 0; // Pointer to the insert point
+uint32_t webserverTimer = 0; // Time used to implement the sample rate
+void addWebDataP1(char* p1); // Add data point to the data store from P1 message
+void handleRoot(); // Handle root page callback
+void handleDataApi(); // Handle data page/api callback
+void handleNotFound(); // Handle not found page callback
+
+// Varibles to store the P1 data that is provided to the webpage
 char DSMRVersion[5] = "-";
 char DSMRTimestamp[14] = "-";
-float dataPowerConsumption[WEBSERVERDATALENGTH];  // Variable to store the actual power data five minute data 12 data points each hour
-float dataPowerProduction[WEBSERVERDATALENGTH];  // Variable to store the actual power data five minute data 12 data points each hour
-float dataEnergyConsumption1[WEBSERVERDATALENGTH]; // Variable to store the actual energy data five minute data 12 data points each hour
-float dataEnergyConsumption2[WEBSERVERDATALENGTH]; // Variable to store the actual energy data five minute data 12 data points each hour
-float dataEnergyProduction1[WEBSERVERDATALENGTH]; // Variable to store the actual energy data five minute data 12 data points each hour
-float dataEnergyProduction2[WEBSERVERDATALENGTH]; // Variable to store the actual energy data five minute data 12 data points each hour
-void addWebDataP1(char* p1);
-uint32_t webserverTimer = 0;
+float dataActualPowerConsumption[WEBSERVERDATALENGTH];  // Actual power consumption kW
+float dataActualPowerProduction[WEBSERVERDATALENGTH];  // Actual power production kW
+float dataEnergyConsumption1[WEBSERVERDATALENGTH]; // Energy consumption 1 kWh
+float dataEnergyConsumption2[WEBSERVERDATALENGTH]; // Energy consumption 2 kWh
+float dataEnergyProduction1[WEBSERVERDATALENGTH]; // Energy production 1 kWh
+float dataEnergyProduction2[WEBSERVERDATALENGTH]; // Energy production 1 kWh
 
 /* Prototype FSM functions. */
 void start_pre(void);
@@ -345,6 +350,22 @@ Version :      DMK, Initial code
 
   // Setup TCP/IP server
   tcpServer.begin();
+  
+  // Web server initialization
+  server.on("/", handleRoot);               // Call the 'handleRoot' function when a client requests URI "/"
+  server.on("/data", handleDataApi);        // Call the 'handleDataApi' function when a client requests URI "/data"
+  server.onNotFound(handleNotFound);        // When a client requests an unknown URI (i.e. something other than "/"), call function "handleNotFound"
+  server.begin();                           // Actually start the server
+
+  // Initialize the data stores with zero
+  for ( uint16_t i=0; i < WEBSERVERDATALENGTH; i++ ) {
+    dataActualPowerConsumption[i] = 0; // Actual power consumpation kW
+    dataActualPowerProduction[i] = 0; // Actual power production kW
+    dataEnergyConsumption1[i] = 0; // Energy 1 consumption Kwh
+    dataEnergyConsumption2[i] = 0; // Energy 2 consumption kWh
+    dataEnergyProduction1[i] = 0; // Energy 1 production kWh
+    dataEnergyProduction2[i] = 0; // Energy 2 production kWh
+  }
 
   // Always print config to terminal before swapping serial port
   Serial.begin(115200, SERIAL_8N1);
@@ -369,13 +390,13 @@ Version :      DMK, Initial code
   Serial.printf("DSMR settings\n");
   Serial.printf("\tP1 Baudrate     : %s baud\n", app_config.p1_baudrate);
 
-  // mDNS Service
-  if ( MDNS.begin("diy_smartmeter") ) { 
+  // Setup mDNS Service
+  if ( MDNS.begin("diy_smartmeter2") ) { 
     MDNS.addService("http", "tcp", 80);     // Webserver
-    MDNS.addService("p1data", "tcp", 3141); // TCP/IP P1 data server
-    Serial.println("\nmDNS: Started");
+    MDNS.addService("p1data", "tcp", 3141); // TCP/IP P1 data provider server
+    Serial.println("mDNS: Started");
   } else {
-    Serial.println("\nmDNS: Error");
+    Serial.println("mDNS: Error");
   }
 
   Serial.printf("***************************************************\n\n");
@@ -422,25 +443,6 @@ Version :      DMK, Initial code
   // Check for IP connection 
   if( WiFi.status() == WL_CONNECTED) {
 
-    // Setup the web server when Wi-Fi is connected
-    if( !webServerInitialized ) {
-      server.on("/", handleRoot);               // Call the 'handleRoot' function when a client requests URI "/"
-      server.on("/data", handleDataApi);        // Call the 'handleDataApi' function when a client requests URI "/data"
-      server.onNotFound(handleNotFound);        // When a client requests an unknown URI (i.e. something other than "/"), call function "handleNotFound"
-      server.begin();                           // Actually start the server
-      DEBUG_PRINTF("%s\n", "HTTP server started");
-      webServerInitialized = true;
-
-      for ( uint16_t i=0; i < WEBSERVERDATALENGTH; i++ ) {
-        dataPowerConsumption[i] = 0;
-        dataPowerProduction[i] = 0;
-        dataEnergyConsumption1[i] = 0;
-        dataEnergyConsumption2[i] = 0;
-        dataEnergyProduction1[i] = 0;
-        dataEnergyProduction2[i] = 0;
-      }
-    }
-
     // Handle mqtt
     if( !mqttClient.connected() ) {
       smartLedFlash(RED); // Added to see when MQTT is not connected
@@ -451,24 +453,22 @@ Version :      DMK, Initial code
       mqttClient.loop();
     }
 
-    // Handle mDNS
+    // Handle mDNS service
     MDNS.update();
 
-    // Handle HTTP server
-    if ( webServerInitialized ) {
-      server.handleClient(); // Listen for HTTP requests from clients
-    }
-  }
+    // Handle HTTP web server
+    server.handleClient(); // Listen for HTTP requests from clients
 
-  // Handle TCP/IP server
-  if (tcpServer.hasClient() ) {
-    if ( !tcpServerClient || !tcpServerClient.connected() ) { // Check if free or disconnected
-      if ( tcpServerClient ) {
-        tcpServerClient.stop();
+    // Handle client connection to the TCP/IP server
+    if (tcpServer.hasClient() ) {
+      if ( !tcpServerClient || !tcpServerClient.connected() ) { // Check if free or disconnected
+        if ( tcpServerClient ) {
+          tcpServerClient.stop();
+        }
+        tcpServerClient = tcpServer.available();
+        char t[] = "Smartmeter P1\n";
+        tcpServerClient.write(t, strlen(t));
       }
-      tcpServerClient = tcpServer.available();
-      char t[] = "Smartmeter P1\n";
-      tcpServerClient.write(t, strlen(t));
     }
   }
 
@@ -478,7 +478,7 @@ Version :      DMK, Initial code
       addWebDataP1(p1_buf);
       webserverTimer = millis();
     }
-    if ( tcpServerClient.connected() ) { // Send the data to the connected client
+    if ( tcpServerClient.connected() ) { // Send the P1 data to the connected client
       tcpServerClient.write(p1_buf, strlen(p1_buf));
     }
     raiseEvent(EV_P1_AVAILABLE);
@@ -533,7 +533,7 @@ Version :   DMK, Initial code
   char *host = app_config.mqtt_remote_host;
   int port = atoi(app_config.mqtt_remote_port);
   
-  mqttClient.setClient(wifiClient);
+  mqttClient.setClient(mqttWifiClient);
   mqttClient.setServer(host, port );
   mqttClient.setBufferSize(MQTT_MSGBUF_SIZE);
   if(mqttClient.connect(app_config.mqtt_id, app_config.mqtt_username, app_config.mqtt_password)){
@@ -1015,9 +1015,15 @@ void mqtt_post(void){
   DEBUG_PRINTF("%s:\n\r", __FUNCTION__);
 }
 
+/******************************************************************
+*
+* HTTP Web Server section
+*
+******************************************************************/
+
 /******************************************************************/
 void handleRoot() {
-   String rootHtml = R"(
+  String rootHtml = R"(
 <!doctype html>
 <html lang="en" data-bs-theme="dark">
 <html>
@@ -1050,13 +1056,13 @@ $(document).ready(function(){
 void handleDataApi() {
   String dataJson = "{\"power_consumption\":[";
   for ( uint16_t i=0; i < webDataPointer-1; i++ ) {
-    dataJson = dataJson + dataPowerConsumption[i] + ",";
+    dataJson = dataJson + dataActualPowerConsumption[i] + ",";
   }
-  dataJson = dataJson + dataPowerConsumption[webDataPointer-1] + "],\"power_production\":[";
+  dataJson = dataJson + dataActualPowerConsumption[webDataPointer-1] + "],\"power_production\":[";
   for ( uint16_t i=0; i < webDataPointer-1; i++ ) {
-    dataJson = dataJson + dataPowerProduction[i] + ",";
+    dataJson = dataJson + dataActualPowerProduction[i] + ",";
   }
-  dataJson = dataJson + dataPowerProduction[webDataPointer-1] + "],\"energy_consumption1\":[";
+  dataJson = dataJson + dataActualPowerProduction[webDataPointer-1] + "],\"energy_consumption1\":[";
   for ( uint16_t i=0; i < webDataPointer-1; i++ ) {
     dataJson = dataJson + dataEnergyConsumption1[i] + ",";
   }
@@ -1084,9 +1090,11 @@ void handleNotFound () {
 }
 
 /******************************************************************/
-//https://github.com/energietransitie/dsmr-info/blob/main/dsmr-p1-specs.csv
-//https://github.com/energietransitie/dsmr-info/blob/main/dsmr-e-meters.csv
-//https://github.com/reneklootwijk/node-dsmr/tree/master
+/* Documentation
+  - https://github.com/energietransitie/dsmr-info/blob/main/dsmr-p1-specs.csv
+  - https://github.com/energietransitie/dsmr-info/blob/main/dsmr-e-meters.csv
+  - https://github.com/reneklootwijk/node-dsmr/tree/master
+*/
 void addWebDataP1(char* p1) {
   char keys[9][10] = {
     "1-3:0.2.8", // DMSR version -> 1-3:0.2.8(50)
@@ -1102,8 +1110,8 @@ void addWebDataP1(char* p1) {
 
   if ( webDataPointer == WEBSERVERDATALENGTH ) { // shift the values to the left
     for ( uint16_t i=0; i < WEBSERVERDATALENGTH - 1; i++ ) {
-      dataPowerConsumption[i] = dataPowerConsumption[i+1];
-      dataPowerProduction[i] = dataPowerProduction[i+1];
+      dataActualPowerConsumption[i] = dataActualPowerConsumption[i+1];
+      dataActualPowerProduction[i] = dataActualPowerProduction[i+1];
       dataEnergyConsumption1[i] = dataEnergyConsumption1[i+1];
       dataEnergyConsumption2[i] = dataEnergyConsumption2[i+1];
       dataEnergyProduction1[i] = dataEnergyProduction1[i+1];
@@ -1153,11 +1161,11 @@ void addWebDataP1(char* p1) {
             break;
           case 7:
             strncpy(temp, (const char*) p1+i+9+1, 6); // actual consumption
-            dataPowerConsumption[webDataPointer] = atof(temp);
+            dataActualPowerConsumption[webDataPointer] = atof(temp);
             break;
           case 8:
             strncpy(temp, (const char*) p1+i+9+1, 6); // actual production
-            dataPowerProduction[webDataPointer] = atof(temp);
+            dataActualPowerProduction[webDataPointer] = atof(temp);
             break;
         }
       }
