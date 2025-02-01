@@ -1041,7 +1041,7 @@ void handleRoot() {
   <script>
 $(document).ready(function(){
  $.ajax({
-    url: "https://raw.githubusercontent.com/AvansETI/SmartMeter_DIY/refs/heads/feature/webserver/Firmware/sm-esp8266/web/body.html",
+    url: "https://raw.githubusercontent.com/AvansETI/SmartMeter_DIY/refs/heads/master/Firmware/sm-esp8266/web/body.html",
     success: function (data) { $('body').append(data); },
     dataType: 'html'
  });
