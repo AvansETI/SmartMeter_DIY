@@ -46,10 +46,17 @@ const configPower = {
   data: {
     labels: data_x,
     datasets: [{
-        label: 'Power (kW)',
+        label: 'Consumption (kW)',
         data: [],
         fill: false,
         borderColor: 'rgb(255, 0, 0)',
+        tension: 0.2,
+    },
+    {
+        label: 'Production (kW)',
+        data: [],
+        fill: false,
+        borderColor: 'rgb(0, 0, 255)',
         tension: 0.2,
     }]},
   options: {
@@ -106,6 +113,11 @@ function updateDataPower () {
   for ( i in data.power_consumption ) {
     chartPower.data.datasets[0].data.push(data.power_consumption[i]);
   }
+  chartPower.data.datasets[1].data = [];
+  for ( i in data.power_production ) {
+    chartPower.data.datasets[1].data.push(data.power_productio[i]);
+  }
+
   chartPower.update();
 }
 
