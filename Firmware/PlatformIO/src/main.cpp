@@ -1,5 +1,5 @@
 /*-------------------------------------------------------------------------
-  Arduino sketch to mqtt Dutch Smart Meter P1 datagrams.
+  PlatformIO (Arduino sketch) to mqtt Dutch Smart Meter P1 datagrams.
 
   See  for more information.
 
@@ -8,13 +8,15 @@
   V1.2: Updated to latest version ArduinoJson library (feb 2020)
   V1.3: Updated to latest PubSubClient (jan 2021)
   V1.4: Changed server location (sendlab.nl), removed credentials
+  v1.5: Moved from deprecated SPIFFS to LittleFS and added ECC key exchange with sendlab.nl server
 
   Installation Arduino IDE:
   - How to get the Wemos installed in the Ardiuno IDE: https://siytek.com/wemos-d1-mini-arduino-wifi/
   - Install library tzapu/WiFiManager by tablatronics: https://github.com/tzapu/WiFiManager
   - Install library bblanchon/JsonArduino by Banoit Blanchon: https://arduinojson.org/?utm_source=meta&utm_medium=library.properties
   - Install library knolleary/PubSubClient by Nick O'Leary: https://github.com/knolleary/pubsubclient
- 
+  - micro-ecc, AES
+
   Happy Coding
   
   -------------------------------------------------------------------------
@@ -43,19 +45,29 @@
   -------------------------------------------------------------------------*/
 
 #include <ESP8266WiFi.h>
+#include <ESP8266HTTPClient.h>
 #include <WiFiClient.h>
 #include <WiFiManager.h>
 #include <Ticker.h>
 #include <ESP8266mDNS.h>
 #include <ArduinoJson.h>
-#include <FS.h>
+#include <LittleFS.h> // Moved from deprecated SPIFFS to LittleFS
 #include <Ticker.h>
+#include <uECC.h>
+#include "AESLib.h"
 
 #include "PubSubClient.h"
 // FIXED in Library: No actions needed. Old mgs: 'MAKE SURE: in PubSubClient.h change MQTT_MAX_PACKET_SIZE to 2048 !!'
 
 // Homeserver credentials
-#include "MqttSendlab.h"
+#include "MqttConfig.h"
+#include "fsm.hpp"
+#include "states/fsmstate_start.hpp"
+#include "states/fsmstate_wifi.hpp"
+#include "states/fsmstate_mqtt.hpp"
+#include "states/fsmstate_security.hpp"
+#include "states/fsmstate_capturep1.hpp"
+#include "states/fsmstate_send.hpp"
 
 #define DEBUG
 
@@ -86,6 +98,15 @@
 // Minimun delay between mqtt publish events. Prevents mqtt spam e.g. DSMR 5.0 updates every second!
 #define MQTT_TOPIC_UPDATE_RATE_MS  20000
 
+// Finite State Machine
+FSM<10, 10> fsmTest(false);
+FSMState_Start fsmState_Start(&fsmTest);
+FSMState_WiFi fsmState_WiFi(&fsmTest);
+FSMState_MQTT fsmState_MQTT(&fsmTest);
+FSMState_Security fsmState_Security(&fsmTest);
+FSMState_CaptureP1 fsmState_CaptureP1(&fsmTest);
+FSMState_Send fsmState_Send(&fsmTest);
+
 // Local variables
 WiFiManager wifiManager;
 
@@ -108,6 +129,15 @@ bool shouldSaveConfig;
 #define MQTT_REMOTE_PORT_LENGTH    10
 #define P1_BAUDRATE_LENGTH         10
 
+// Crypto ECC and AES
+#define ECC_KEY_SIZE 32
+AESLib aesLib;
+byte aes_iv[N_BLOCK] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+
+const struct uECC_Curve_t * curve = uECC_secp256r1();
+uint8_t publickey[ECC_KEY_SIZE*2];
+uint8_t privatekey[ECC_KEY_SIZE];
+uint8_t secretkey[ECC_KEY_SIZE];
 
 typedef struct {
    char     mqtt_username[MQTT_USERNAME_LENGTH];
@@ -117,6 +147,9 @@ typedef struct {
    char     mqtt_remote_host[MQTT_REMOTE_HOST_LENGTH];
    char     mqtt_remote_port[MQTT_REMOTE_PORT_LENGTH];
    char     p1_baudrate[P1_BAUDRATE_LENGTH];
+   char     ecc_publickey[ECC_KEY_SIZE*2*2+1]; // *2 to convert to hex and +1 is the \0 character that is required for string ending!
+   char     ecc_privatekey[ECC_KEY_SIZE*2+1];
+   char     ecc_secretkey[ECC_KEY_SIZE*2+1];
 } APP_CONFIG_STRUCT;
 
 APP_CONFIG_STRUCT app_config;
@@ -223,6 +256,100 @@ void mqtt_connect();
 void mqtt_callback(char *topic, byte *payload, unsigned int length);
 void saveConfigCallback();
 void sim_callback();
+String numberToHex(uint8_t* n, unsigned size);
+void hexToNumber(String hex, uint8_t* n);
+int RNG(uint8_t *dest, unsigned size);
+void exchangePublicKeys();
+
+char hash[20] = {0}; // THIS IS INPUT BUFFER (FOR TEXT)
+char ciphertext[20*2] = {0}; // THIS IS OUTPUT BUFFER (FOR BASE64-ENCODED ENCRYPTED DATA)
+
+uint16_t encrypt_to_ciphertext(char * msg, byte iv[]) {
+  int msgLen = strlen(msg);
+  int cipherlength = aesLib.get_cipher64_length(msgLen);
+  char encrypted_bytes[cipherlength];
+  uint16_t enc_length = aesLib.encrypt64((const byte*) msg, msgLen, encrypted_bytes, secretkey, sizeof(secretkey), iv);
+  sprintf(ciphertext, "%s", encrypted_bytes);
+  return enc_length;
+}
+
+void decrypt_to_cleartext(char * msg, uint16_t msgLen, byte iv[]) {
+  Serial.println("Calling decrypt64...");
+  Serial.print("[decrypt_to_cleartext] free heap: "); Serial.println(ESP.getFreeHeap());
+  uint16_t decLen = aesLib.decrypt64(msg, msgLen, (byte*) hash, secretkey, sizeof(secretkey), iv);
+  Serial.print("Decrypted bytes: "); Serial.println(decLen);
+}
+
+/******************************************************************/
+String numberToHex(uint8_t* n, unsigned size)
+/* 
+short    : Convert an array of numbers to a hex string.
+inputs   : n is the array of numbers and size is the size of the array.
+outputs  : A String is returned containing the hex value of the number.
+notes    : 
+Version  : MS, Initial code
+*******************************************************************/
+{
+  char hex[] = "0123456789ABCDEF";
+
+  String result = "";
+  for ( uint8_t i=0; i < size; i++ ) {
+    result.concat(hex[(n[i] & 0xF0) >> 4]);
+    result.concat(hex[(n[i] & 0x0F)]);
+  }
+
+  return result;
+}
+
+/******************************************************************/
+void hexToNumber(String hex, uint8_t* n)
+/* 
+short    : Convert a hex string to a number array.
+inputs   : hex contains the heximal number and n is the pointer to the array.
+outputs  : n results into an converted array of the hex string.
+notes    : 
+Version  : MS, Initial code
+*******************************************************************/
+{
+  String hexNumber = "0123456789ABCDEF";
+  for (uint8_t i=0; i < hex.length(); i=i+2) {
+    n[i/2] = ((hexNumber.indexOf(hex.charAt(i))) << 4) + (hexNumber.indexOf(hex.charAt(i+1)));
+  }
+}
+
+/******************************************************************/
+int RNG(uint8_t *dest, unsigned size)
+/* 
+short    : Random number generator for the Wemos         
+inputs   : dest is the pointer to the uint8_t array with size size.
+outputs  : dest is filles with random number.
+notes    : No true random generator and no checks to see that the number
+           is suitable for the crypto key. Based on example uECC lib.
+Version  : MS, Initial code
+*******************************************************************/
+{
+  while (size) {
+    uint8_t val = 0;
+    for (unsigned i = 0; i < 8; ++i) {
+      uint32_t init = ESP.random();
+      int count = 0;
+      while (ESP.random() == init) {
+        ++count;
+      }
+      
+      if (count == 0) {
+         val = (val << 1) | (init & 0x01);
+      } else {
+         val = (val << 1) | (count & 0x01);
+      }
+    }
+
+    *dest = val;
+    ++dest;
+    --size;
+  }
+  return 1;
+}
 
 /******************************************************************/
 void saveConfigCallback () 
@@ -246,6 +373,7 @@ inputs:
 outputs: 
 notes:         
 Version :      DMK, Initial code
+               MS, Added crypto keys
 *******************************************************************/
 {    
   // Define I/O and attach ISR
@@ -280,13 +408,24 @@ Version :      DMK, Initial code
     ESP.reset();
   }
 
+  // Initialize the AES library
+  aesLib.gen_iv(aes_iv);
+  aesLib.set_paddingmode((paddingMode)0);
+  
   // Read config file or generate default
   if( !readAppConfig(&app_config) ) {
+    // Crypto ECC initialization, create new keys
+    uECC_set_rng(&RNG);
+    uECC_make_key(publickey, privatekey, curve);
+
     strcpy(app_config.mqtt_username, MQTT_USERNAME);
     strcpy(app_config.mqtt_password, MQTT_PASSWORD);
     strcpy(app_config.mqtt_remote_host, MQTT_REMOTE_HOST);
     strcpy(app_config.mqtt_remote_port, MQTT_REMOTE_PORT);
     strcpy(app_config.p1_baudrate, "115200");
+    strcpy(app_config.ecc_publickey, numberToHex(publickey, ECC_KEY_SIZE*2).c_str());
+    strcpy(app_config.ecc_privatekey, numberToHex(privatekey, ECC_KEY_SIZE).c_str());
+    strcpy(app_config.ecc_secretkey, "");
     writeAppConfig(&app_config);
   }
 
@@ -339,7 +478,56 @@ Version :      DMK, Initial code
   }
 
   // Always print config to terminal before swapping serial port
-  Serial.begin(115200, SERIAL_8N1);
+  Serial.begin(115200, SERIAL_8N1); Serial.println();
+
+  fsmTest.addState(&fsmState_Start);
+  fsmTest.addState(&fsmState_WiFi);
+  fsmTest.addState(&fsmState_MQTT);
+  fsmTest.addState(&fsmState_Security);
+  fsmTest.addState(&fsmState_CaptureP1);
+  fsmTest.addState(&fsmState_Send);
+
+  fsmTest.addTransition(&fsmState_Start, "READY", &fsmState_WiFi);
+  fsmTest.addTransition(&fsmState_WiFi, "WIFI", &fsmState_MQTT);
+  fsmTest.addTransition(&fsmState_MQTT, "MQTT", &fsmState_Security);
+  fsmTest.addTransition(&fsmState_MQTT, "ERROR", &fsmState_WiFi);
+  fsmTest.addTransition(&fsmState_Security, "DONE", &fsmState_CaptureP1);
+  fsmTest.addTransition(&fsmState_Security, "ERROR", &fsmState_WiFi);
+  fsmTest.addTransition(&fsmState_CaptureP1, "P1", &fsmState_Send);
+  fsmTest.addTransition(&fsmState_CaptureP1, "ERROR", &fsmState_WiFi);
+  fsmTest.addTransition(&fsmState_Send, "SEND", &fsmState_CaptureP1);
+  fsmTest.addTransition(&fsmState_Send, "ERROR", &fsmState_WiFi);
+
+  fsmTest.setup();
+  fsmTest.start(&fsmState_Start);
+  fsmTest.raiseEvent("READY");
+
+  WiFiClient client;
+  String data = String(app_config.mqtt_id) + ";ECC_SECP256R1;" + numberToHex(publickey, ECC_KEY_SIZE*2);
+  Serial.println(data);
+  if ( client.connect("sendlab.nl", 11223) ) {
+    client.println(data);
+    Serial.println(client.readString());
+  } else {
+    Serial.println("Cannot Connect TCP/IP: Could not establish key exchange");
+  }
+
+  Serial.println("Starting with the crypto!");
+  exchangePublicKeys();
+  strcpy(app_config.ecc_secretkey, numberToHex(secretkey, ECC_KEY_SIZE).c_str());
+
+  /*HTTPClient http;
+  String url = "http://sendlab.nl/smartmeter.php?t=ECC_SECP160R1&k=" + numberToHex(publickey, 40);
+  Serial.println(url.c_str());
+  http.begin(wifiClient, url);
+  int httpCode = http.GET();
+  if (httpCode > 0) {
+    String payload = http.getString();
+    Serial.println(payload);
+    //strcpy(app_config.ecc_secretkey, payload); // check length
+    //writeAppConfig(&app_config);
+  }
+  http.end();*/
 
   Serial.printf("\n");
   Serial.printf("************ DIY Smartmeter KIT********************\n");
@@ -348,6 +536,11 @@ Version :      DMK, Initial code
   Serial.printf("\tCore Version    : %s\n", ESP.getCoreVersion().c_str() );
   Serial.printf("\tCore Frequency  : %d Mhz\n", ESP.getCpuFreqMHz());
   Serial.printf("\tLast reset      : %s\n", ESP.getResetReason().c_str() );
+
+  Serial.printf("WIFI settings\n");
+  Serial.printf("\tMAC address     : %s\n", WiFi.macAddress().c_str());
+  Serial.printf("\tIP address      : %s\n", WiFi.localIP().toString().c_str());
+  Serial.printf("\tIP address      : %s\n", WiFi.SSID().c_str());
 
   Serial.printf("MQTT settings\n");
   Serial.printf("\tmqtt_username   : %s\n", app_config.mqtt_username);
@@ -360,6 +553,13 @@ Version :      DMK, Initial code
   Serial.printf("DSMR settings\n");
   Serial.printf("\tP1 Baudrate     : %s baud\n", app_config.p1_baudrate);
 
+  Serial.printf("ECC SECP256r1\n");
+  Serial.printf("\tPublic key      : %s\n", app_config.ecc_publickey);
+  Serial.printf("\tPrivate key     : %s\n", app_config.ecc_privatekey);
+  Serial.printf("\tSecret key      : %s\n", app_config.ecc_secretkey);
+  //Serial.printf("\tPublic key : %s\n", numberToHex(publickey, 40).c_str());
+  //Serial.printf("\tPrivate key: %s\n", numberToHex(privatekey, 21).c_str());
+  //Serial.printf("\tSecret key : %s\n", numberToHex(secretkey, 21).c_str());
   Serial.printf("***************************************************\n\n");
 
   Serial.flush();
@@ -397,6 +597,32 @@ Version :      DMK, Initial code
   initFSM(STATE_START, EV_IDLE);
 }
 
+void exchangePublicKeys() { // Simulation of the exchange with the server
+  Serial.println("Exchangeing keys!");
+  const struct uECC_Curve_t * curve2 = uECC_secp256r1();
+  uint8_t publickey2[ECC_KEY_SIZE*2];
+  uint8_t privatekey2[ECC_KEY_SIZE];
+  uECC_set_rng(&RNG);
+  uECC_make_key(publickey2, privatekey2, curve2);
+  //Serial.printf("\tPublic key2 : %s\n", numberToHex(publickey2, ECC_KEY_SIZE*2).c_str());
+  //Serial.printf("\tPrivate key2 : %s\n", numberToHex(privatekey2, ECC_KEY_SIZE*2).c_str());
+
+  int r = uECC_shared_secret(publickey2, privatekey, secretkey, curve);
+  //Serial.printf("\tSecret key : %s\n", numberToHex(secretkey, ECC_KEY_SIZE*2+1).c_str());
+  if (!r) {
+    Serial.print("shared_secret() failed (1)\n");
+    return;
+  }
+
+//  HTTPClient http;
+//  http.begin(wifiClient, "http://sendlab.nl/smartmeter.php?t=ECC_SECP160R1&k=" + numberToHex(publickey, 40));
+//  int httpCode = http.GET();
+//  if (httpCode > 0) {
+//    String payload = http.getString();
+//  }
+//  http.end();
+}
+
 /******************************************************************/
 void loop()
 /* 
@@ -407,9 +633,12 @@ notes:
 Version :      DMK, Initial code
 *******************************************************************/
 {
+  fsmTest.loop();
 
   // Check for IP connection 
   if( WiFi.status() == WL_CONNECTED) {
+
+    //exchangePublicKeys();
 
     // Handle mqtt
     if( !mqttClient.connected() ) {
@@ -443,7 +672,6 @@ Version :      DMK, Initial code
     } 
   }
 }
-
 
 /******************************************************************
 *
@@ -529,7 +757,6 @@ Version :   DMK, Initial code
    strcat(signature,tmp);
 }
 
-
 /******************************************************************/
 /*
  * Application signature and config
@@ -544,13 +771,14 @@ inputs:
 outputs: 
 notes:         
 Version :      DMK, Initial code
+               MS, Replaced deprecated SPIFFS to LittleFS
 *******************************************************************/
 {
   bool retval = false;
   
-  if( SPIFFS.begin() ) {
-    if( SPIFFS.exists("/config.json") ) {
-       File configFile = SPIFFS.open("/config.json","r");
+  if( LittleFS.begin() ) {
+    if( LittleFS.exists("/config.json") ) {
+       File configFile = LittleFS.open("/config.json","r");
        if( configFile ) {
 
           size_t size = configFile.size();
@@ -565,12 +793,20 @@ Version :      DMK, Initial code
           DeserializationError error = deserializeJson(doc, buf.get());
           
           if( error == DeserializationError::Ok ) {
-             strcpy(app_config->mqtt_username, doc["MQTT_USERNAME"]);
-             strcpy(app_config->mqtt_password, doc["MQTT_PASSWORD"]);
-             strcpy(app_config->mqtt_remote_host, doc["MQTT_HOST"]);
-             strcpy(app_config->mqtt_remote_port, doc["MQTT_PORT"]);
-             strcpy(app_config->p1_baudrate, doc["P1_BAUDRATE"]);
-             retval = true;
+            strcpy(app_config->mqtt_username, doc["MQTT_USERNAME"]);
+            strcpy(app_config->mqtt_password, doc["MQTT_PASSWORD"]);
+            strcpy(app_config->mqtt_remote_host, doc["MQTT_HOST"]);
+            strcpy(app_config->mqtt_remote_port, doc["MQTT_PORT"]);
+            strcpy(app_config->p1_baudrate, doc["P1_BAUDRATE"]);
+            strcpy(app_config->ecc_publickey, doc["ECC_PUBLIC"]);
+            strcpy(app_config->ecc_privatekey, doc["ECC_PRIVATE"]);
+            strcpy(app_config->ecc_secretkey, doc["ECC_SECRET"]);
+
+            hexToNumber(app_config->ecc_publickey, publickey);
+            hexToNumber(app_config->ecc_privatekey, privatekey);
+            hexToNumber(app_config->ecc_secretkey, secretkey);
+
+            retval = true;
           }
        }
     }
@@ -586,6 +822,7 @@ inputs:
 outputs: 
 notes:         
 Version :      DMK, Initial code
+               MS, Replaced deprecated SPIFFS to LittleFS
 *******************************************************************/
 {
   bool retval = false;
@@ -595,11 +832,14 @@ Version :      DMK, Initial code
   StaticJsonDocument<512> doc;
   doc["MQTT_USERNAME"] = app_config->mqtt_username;
   doc["MQTT_PASSWORD"] = app_config->mqtt_password;
-  doc["MQTT_HOST"] = app_config->mqtt_remote_host;
-  doc["MQTT_PORT"] = app_config->mqtt_remote_port;
-  doc["P1_BAUDRATE"]= app_config->p1_baudrate;
+  doc["MQTT_HOST"]     = app_config->mqtt_remote_host;
+  doc["MQTT_PORT"]     = app_config->mqtt_remote_port;
+  doc["P1_BAUDRATE"]   = app_config->p1_baudrate;
+  doc["ECC_PUBLIC"]    = app_config->ecc_publickey;
+  doc["ECC_PRIVATE"]   = app_config->ecc_privatekey;
+  doc["ECC_SECRET"]    = app_config->ecc_secretkey;
   
-  File configFile = SPIFFS.open("/config.json","w+");
+  File configFile = LittleFS.open("/config.json","w+");
   if( configFile ) {
      serializeJson(doc, configFile);
      configFile.close();
@@ -616,12 +856,13 @@ inputs:
 outputs: 
 notes:         
 Version :      DMK, Initial code
+               MS, Replaced deprecated SPIFFS to LittleFS
 *******************************************************************/
 {
   bool retval = false;
-  if( SPIFFS.begin() ) {
-    if( SPIFFS.exists("/config.json") ) {
-      if( SPIFFS.remove("/config.json") ) {
+  if( LittleFS.begin() ) {
+    if( LittleFS.exists("/config.json") ) {
+      if( LittleFS.remove("/config.json") ) {
         retval = true;
       }
     }
