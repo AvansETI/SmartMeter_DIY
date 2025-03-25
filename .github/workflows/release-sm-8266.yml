@@ -1,7 +1,7 @@
-name: build-sm-esp8266
+name: release-sm-esp8266
 on: [push, pull_request]
 jobs:
-  build-sm-esp8266:
+  release-sm-esp8266:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
