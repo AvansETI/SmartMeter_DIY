@@ -1,8 +1,14 @@
 name: build
 
 on:
-  - push
-  - pull_request
+  push:
+    branches: 
+      - main
+      - development
+  pull_request:
+    branches: 
+      - main
+      - development
 
 jobs:
   compile-sketches:
