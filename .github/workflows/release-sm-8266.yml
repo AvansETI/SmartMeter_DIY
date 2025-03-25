@@ -1,0 +1,61 @@
+name: release-sm-esp8266
+on: [push, pull_request]
+jobs:
+  release-sm-esp8266:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get versions of source files
+        run: |
+          SM_ESP8622_TAG=$(cat Firmware/sm-esp8266/sm-esp8266.ino | grep -oP 'V[0-9]\.[0.-9]' | tail -1 | tr "." "-")
+          SM_ESP8622_VER=$(cat Firmware/sm-esp8266/sm-esp8266.ino | grep -oP 'V[0-9]\.[0.-9]' | tail -1)
+          echo "VERSION=$SM_ESP8622_VER.${{github.run_id}}" >> $GITHUB_ENV
+          echo "VERSION_TAG=$SM_ESP8622_TAG-${{github.run_id}}" >> $GITHUB_ENV
+          echo "SM-ESP8622-VERSION found '$SM_ESP8622_VER'"
+          echo "SM-ESP8622-VERSION-TAG found '$SM_ESP8622_TAG'"
+
+      - name: Push Tag
+        run: |
+          tag=${{env.VERSION_TAG}}
+          message='Automatic release creation tag ${{env.VERSION_TAG}}'
+          git config user.name "${GITHUB_ACTOR}"
+          git config user.email "${GITHUB_ACTOR}@users.noreply.github.com"
+          git tag -a "${tag}" -m "${message}"
+          git push origin "${tag}"
+          
+      - name: Install Arduino CLI
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | BINDIR=/usr/local/bin sh
+
+      - name: Install ESP8266 platform
+        run: |
+          arduino-cli config init
+          arduino-cli config add board_manager.additional_urls https://arduino.esp8266.com/stable/package_esp8266com_index.json
+          arduino-cli core update-index
+          arduino-cli core install esp8266:esp8266
+
+      - name: Install Libraries
+        run: |
+          arduino-cli lib install WiFiManager
+          arduino-cli lib install ArduinoJson
+          arduino-cli lib install PubSubClient
+
+      - name: Compile Sketch
+        run: |
+          arduino-cli compile --fqbn esp8266:esp8266:d1_mini_pro Firmware/sm-esp8266 -v -e
+
+      - name: List files
+        run: |
+          ls -l Firmware/sm-esp8266/build/esp8266.esp8266.d1_mini_pro
+      
+      - name: Release
+        uses: softprops/action-gh-release@v2
+#        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          name: "Release ${{env.VERSION}}"
+          tag_name: ${{env.VERSION_TAG}}
+          files: |
+            Firmware/sm-esp8266/build/esp8266.esp8266.d1_mini_pro/sm-esp8266.ino.bin
+#           Firmware/sm-esp8266/build/esp8266.esp8266.d1_mini_pro/sm-esp8266.ino.elf
+#           Firmware/sm-esp8266/build/esp8266.esp8266.d1_mini_pro/sm-esp8266.ino.map
