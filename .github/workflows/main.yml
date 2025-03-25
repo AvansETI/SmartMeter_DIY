@@ -7,9 +7,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+      
       - uses: arduino/compile-sketches@v1
         with:
-          cli-compile-flags: --build-path ./build
+          cli-compile-flags: --export-binaries
           verbose: true
           fqbn: esp8266:esp8266:d1_mini_pro
           platforms: |
@@ -22,5 +23,8 @@ jobs:
             - name: ArduinoJson
             - name: PubSubClient
 
+      - name: build gmdatadiode
+        run: |
+         ls -l
   
           
