@@ -56,6 +56,6 @@ jobs:
           name: "Release ${{env.VERSION}}"
           tag_name: ${{env.VERSION_TAG}}
           files: |
-            Firmware/sm-esp8266/sm-esp8266.ino.bin
-            Firmware/sm-esp8266/sm-esp8266.ino.elf
-            Firmware/sm-esp8266/sm-esp8266.ino.map
+            Firmware/sm-esp8266/build/esp8266.esp8266.d1_mini_pro/sm-esp8266.ino.bin
+            Firmware/sm-esp8266/build/esp8266.esp8266.d1_mini_pro/sm-esp8266.ino.elf
+            Firmware/sm-esp8266/build/esp8266.esp8266.d1_mini_pro/sm-esp8266.ino.map
