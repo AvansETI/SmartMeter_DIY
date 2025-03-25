@@ -1,14 +1,13 @@
 name: build
-
 on: [push, pull_request]
-
 jobs:
   compile-sketches:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4  # Updated to latest version
       
-      - uses: arduino/compile-sketches@v1
+      - name: Compile Arduino Sketches
+        uses: arduino/compile-sketches@v1
         with:
           verbose: true
           fqbn: esp8266:esp8266:d1_mini_pro
@@ -21,10 +20,8 @@ jobs:
             - name: WiFiManager
             - name: ArduinoJson
             - name: PubSubClient
-          cli-compile-flags: " -e "
+          cli-compile-flags: "-e"  # Removed extra spaces
 
-      - name: build gmdatadiode
+      - name: List Files
         run: |
-         ls -l
-  
-          
+          ls -l Firmware/sm-esp8266
