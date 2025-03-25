@@ -39,8 +39,9 @@ jobs:
       
       - name: Release
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/')
+        #if: startsWith(github.ref, 'refs/tags/')
         with:
+          name: "Release $SM_ESP8622_VER.${{github.run_id}}"
           files: |
             Firmware/sm-esp8266/sm-esp8266.ino.bin
             Firmware/sm-esp8266/sm-esp8266.ino.elf
