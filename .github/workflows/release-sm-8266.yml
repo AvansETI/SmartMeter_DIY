@@ -5,6 +5,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        run: |
+          ls -l
 
       - name: Get versions of source files
         run: |
