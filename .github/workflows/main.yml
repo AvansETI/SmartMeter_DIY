@@ -10,7 +10,7 @@ jobs:
       
       - uses: arduino/compile-sketches@v1
         with:
-          cli-compile-flags: --export-binaries
+          cli-compile-flags: "--export-binaries"
           verbose: true
           fqbn: esp8266:esp8266:d1_mini_pro
           platforms: |
