@@ -6,9 +6,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: testing
-        run: |
-          ls -l
+      - uses: actions-ecosystem/action-push-tag@v1
+        with:
+          tag: ${{env.VERSION}}.${{github.run_id}}
+          message: 'Automatic release creation tag ${{env.VERSION}}.${{github.run_id}}'
 
       - name: Get versions of source files
         run: |
@@ -40,12 +41,6 @@ jobs:
       - name: List files
         run: |
           ls -l Firmware/sm-esp8266/build/esp8266.esp8266.d1_mini_pro
-
-      - uses: actions-ecosystem/action-push-tag@v1
-        with:
-          tag: ${{env.VERSION}}.${{github.run_id}}
-          message: 'Automatic release creation tag ${{env.VERSION}}.${{github.run_id}}'
-
       
       - name: Release
         uses: softprops/action-gh-release@v2
