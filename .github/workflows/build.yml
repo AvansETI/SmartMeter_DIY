@@ -25,4 +25,8 @@ jobs:
 
       - name: Compile Sketch
         run: |
-          arduino-cli compile --fqbn esp8266:esp8266:d1_mini_pro Firmware/sm-esp8266 -v
+          arduino-cli compile --fqbn esp8266:esp8266:d1_mini_pro Firmware/sm-esp8266 -v -e
+
+      - name: List files
+        run: |
+          ls -l Firmware/sm-esp8266
