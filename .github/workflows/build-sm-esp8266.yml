@@ -1,0 +1,27 @@
+name: build-sm-esp8266
+on: [push, pull_request]
+jobs:
+  build-sm-esp8266:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4  # Updated to latest version
+      
+      - name: Compile Arduino Sketches
+        uses: arduino/compile-sketches@v1
+        with:
+          verbose: true
+          fqbn: esp8266:esp8266:d1_mini_pro
+          platforms: |
+            - source-url: https://arduino.esp8266.com/stable/package_esp8266com_index.json
+              name: esp8266:esp8266
+          sketch-paths: |
+            - Firmware/sm-esp8266
+          libraries: |
+            - name: WiFiManager
+            - name: ArduinoJson
+            - name: PubSubClient
+#          cli-compile-flags: "-e"  # Does not work, created issue: https://github.com/arduino/compile-sketches/issues/368
+
+      - name: List Files
+        run: |
+          ls -l Firmware/sm-esp8266
