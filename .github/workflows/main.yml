@@ -7,9 +7,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - uses: ardiuno/compile-sketches@v1
+      - uses: arduino/compile-sketches@v1
         with:
-          fqbn: ardiuno:esp8266:d1_mini
+          fqbn: arduino:esp8266:d1_mini
           sketch-paths: |
             - Firmware/sm-esp8266
           libraries: |
