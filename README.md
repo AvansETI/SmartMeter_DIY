@@ -1,6 +1,6 @@
 # [DIY Dutch Smart Meter Interface](https://github.com/AvansETI/SmartMeter_DIY/wiki)
 
-[![build-sm-esp8266](https://github.com/AvansETI/SmartMeter_DIY/actions/workflows/build-sm-esp8266.yml/badge.svg)](https://github.com/AvansETI/SmartMeter_DIY/actions/workflows/build-sm-esp8266.yml)
+[![build-sm-esp8266](https://github.com/AvansETI/SmartMeter_DIY/actions/workflows/build-sm-esp8266.yml/badge.svg?branch=master)](https://github.com/AvansETI/SmartMeter_DIY/actions/workflows/build-sm-esp8266.yml)
 [![release-sm-esp8266](https://github.com/AvansETI/SmartMeter_DIY/actions/workflows/release-sm-8266.yml/badge.svg?branch=master)](https://github.com/AvansETI/SmartMeter_DIY/actions/workflows/release-sm-8266.yml)
 [![LICENSE](https://img.shields.io/badge/license-MIT-lightgrey.svg)](https://github.com/AvansETI/SmartMeter_DIY/blob/master/LICENSE)
 
