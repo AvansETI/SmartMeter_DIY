@@ -67,7 +67,7 @@ jobs:
           cp flasher/index.html deploy/.
           echo "{ \"name\": \"P1 Smart Meter\"," > deploy/manifest.json
           echo "  \"version\": \"${{env.VERSION}}\"," >> deploy/manifest.json
-          echo "  \"new_install_prompt_erase\": true" >> deploy/manifest.json
+          echo "  \"new_install_prompt_erase\": true," >> deploy/manifest.json
           echo "  \"builds\": [ { \"chipFamily\": \"ESP8266\"," >> deploy/manifest.json
           echo "                  \"parts\": [ { \"path\": \"https://p1-smartmeter-flasher.sendlab.nl/sm-esp8266.bin\", \"offset\": 0 } ]" >> deploy/manifest.json
           echo "                 }" >> deploy/manifest.json
