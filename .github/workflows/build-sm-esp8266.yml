@@ -20,7 +20,7 @@ jobs:
             - name: WiFiManager
             - name: ArduinoJson
             - name: PubSubClient
-          cli-compile-flags: "-e"  # Removed extra spaces
+#          cli-compile-flags: "-e"  # Does not work, created issue: https://github.com/arduino/compile-sketches/issues/368
 
       - name: List Files
         run: |
