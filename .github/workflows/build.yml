@@ -6,6 +6,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install Arduino CLI
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | BINDIR=/usr/local/bin sh
+
       - name: Install ESP8266 platform
         run: |
           arduino-cli config init
