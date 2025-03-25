@@ -1,7 +1,7 @@
 name: buildtest
 on: [push, pull_request]
 jobs:
-  build-smesp8266:
+  build-sm-esp8266:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
