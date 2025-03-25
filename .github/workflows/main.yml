@@ -10,7 +10,7 @@ jobs:
       - uses: arduino/compile-sketches@v1
         with:
           verbose: true
-          fqbn: "esp8266:esp8266:LOLIN(WEMOS) D1 mini Pro"
+          fqbn: esp8266:esp8266:d1_mini_pro
           platforms: |
             - source-url: https://arduino.esp8266.com/stable/package_esp8266com_index.json
               name: esp8266:esp8266
