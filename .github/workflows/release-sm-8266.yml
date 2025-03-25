@@ -6,6 +6,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Debug Post-Checkout
+        run: |
+          pwd
+          ls -la
+          git status
+          git remote -v
+
       - name: Get versions of source files
         run: |
           SM_ESP8622_VER=$(cat Firmware/sm-esp8266/sm-esp8266.ino | grep -oP 'V[0-9]\.[0.-9]' | tail -1)
