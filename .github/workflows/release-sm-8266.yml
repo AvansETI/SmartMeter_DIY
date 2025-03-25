@@ -73,9 +73,9 @@ jobs:
           echo "  \"version\": \"${{env.VERSION}}\"," >> deploy/manifest.json
           echo "  \"new_install_prompt_erase\": true," >> deploy/manifest.json
           echo "  \"builds\": [ { \"chipFamily\": \"ESP8266\"," >> deploy/manifest.json
-          echo "                  \"parts\": [ { \"path\": \"https://p1-smartmeter-flasher.sendlab.nl/sm-esp8266.bin\", \"offset\": 0 } ]" >> deploy/manifest.json
-          echo "                 }" >> deploy/manifest.json
-          echo "               ]" >> deploy/manifest.json
+          echo "                  \"parts\": [ { \"path\": \"https://avanseti.github.io/SmartMeter_DIY/sm-esp8266.ino.bin\", \"offset\": 0 } ]" >> deploy/manifest.json
+          echo "                }" >> deploy/manifest.json
+          echo "              ]" >> deploy/manifest.json
           echo "}" >> deploy/manifest.json
           ls -l deploy
           cat deploy/manifest.json
