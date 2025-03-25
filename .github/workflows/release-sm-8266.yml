@@ -6,6 +6,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Get versions of source files
+        run: |
+          SM_ESP8622_VER=$(cat Firmware/sm-esp8266/sm-esp8266.ino | grep -oP 'V[0-9]\.[0.-9]' | tail -1)
+          echo "VERSION=$SM_ESP8622_VER" >> $GITHUB_ENV
+          echo "SM-ESP8622-VERSION found '$SM_ESP8622_VER'"
+          
       - name: Install Arduino CLI
         run: |
           curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | BINDIR=/usr/local/bin sh
