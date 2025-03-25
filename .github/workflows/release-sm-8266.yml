@@ -1,4 +1,4 @@
-name: buildtest
+name: build-sm-esp8266
 on: [push, pull_request]
 jobs:
   build-sm-esp8266:
