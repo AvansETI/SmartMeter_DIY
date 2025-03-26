@@ -1,5 +1,5 @@
 name: build-sm-esp8266
-on: [push, pull_request]
+on: [push]
 jobs:
   build-sm-esp8266:
     runs-on: ubuntu-latest
