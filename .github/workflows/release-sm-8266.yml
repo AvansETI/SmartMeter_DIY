@@ -1,5 +1,9 @@
 name: release-sm-esp8266
 on: [push, pull_request]
+permissions:
+  contents: write
+  pages: write
+  id-token: write
 jobs:
   release-sm-esp8266:
     runs-on: ubuntu-latest
@@ -59,3 +63,36 @@ jobs:
             Firmware/sm-esp8266/build/esp8266.esp8266.d1_mini_pro/sm-esp8266.ino.bin
 #           Firmware/sm-esp8266/build/esp8266.esp8266.d1_mini_pro/sm-esp8266.ino.elf
 #           Firmware/sm-esp8266/build/esp8266.esp8266.d1_mini_pro/sm-esp8266.ino.map
+
+      - name: Prepare Files
+        run: |
+          mkdir -p deploy
+          cp Firmware/sm-esp8266/build/esp8266.esp8266.d1_mini_pro/sm-esp8266.ino.bin deploy/.
+          cp flasher/index.html deploy/.
+          echo "{ \"name\": \"P1 Smart Meter\"," > deploy/manifest.json
+          echo "  \"version\": \"${{env.VERSION}}\"," >> deploy/manifest.json
+          echo "  \"new_install_prompt_erase\": true," >> deploy/manifest.json
+          echo "  \"builds\": [ { \"chipFamily\": \"ESP8266\"," >> deploy/manifest.json
+          echo "                  \"parts\": [ { \"path\": \"https://avanseti.github.io/SmartMeter_DIY/sm-esp8266.ino.bin\", \"offset\": 0 } ]" >> deploy/manifest.json
+          echo "                }" >> deploy/manifest.json
+          echo "              ]" >> deploy/manifest.json
+          echo "}" >> deploy/manifest.json
+          ls -l deploy
+          cat deploy/manifest.json
+          cat deploy/index.html
+      
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './deploy'
+  
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: release-sm-esp8266
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
