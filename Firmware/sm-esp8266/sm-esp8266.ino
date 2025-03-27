@@ -1,27 +1,4 @@
 /*-------------------------------------------------------------------------
-  Arduino sketch to mqtt Dutch Smart Meter P1 datagrams.
-
-  See  for more information.
-
-  V1.0: Initial: dkroeske(dkroeske@gmail.com), august 2019
-  V1.1: Reroute pinning PCB, updated bootsequence
-  V1.2: Updated to latest version ArduinoJson library (feb 2020)
-  V1.3: Updated to latest PubSubClient (jan 2021)
-  V1.4: Changed server location (sendlab.nl), removed credentials
-  V1.5: Added webserver to get insight into the smartmeter readings, added
-        TCP/IP service (port 3141) to get actual P1 message and fixed mDNS
-        so devices can be found by diy_smartmeter.local on your network (ms: jan 2025)
-
-  Installation Arduino IDE:
-  - How to get the Wemos installed in the Ardiuno IDE: https://siytek.com/wemos-d1-mini-arduino-wifi/
-  - Install library WiFiManager by tablatronics: https://github.com/tzapu/WiFiManager
-  - Install library JsonArduino by Banoit Blanchon: https://arduinojson.org/?utm_source=meta&utm_medium=library.properties
-  - Install library knolleary/PubSubClient by Nick O'Leary: https://github.com/knolleary/pubsubclient
- 
-  Happy Coding
-  
-  -------------------------------------------------------------------------
-  
   The MIT License (MIT)
   Copyright © 2019 <copyright Diederich Kroeske>
   
@@ -42,8 +19,30 @@
   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, 
   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN 
   THE SOFTWARE.
-  -------------------------------------------------------------------------*/
+  
+  -------------------------------------------------------------------------
+  
+  Arduino sketch to mqtt Dutch Smart Meter P1 datagrams.
 
+  See  for more information.
+
+  V1.0: Initial: dkroeske(dkroeske@gmail.com), august 2019
+  V1.1: Reroute pinning PCB, updated bootsequence
+  V1.2: Updated to latest version ArduinoJson library (feb 2020)
+  V1.3: Updated to latest PubSubClient (jan 2021)
+  V1.4: Changed server location (sendlab.nl), removed credentials
+  V1.5: Added webserver to get insight into the smartmeter readings, added
+        TCP/IP service (port 3141) to get actual P1 message and fixed mDNS
+        so devices can be found by diy_smartmeter.local on your network (ms: jan 2025)
+
+  Installation Arduino IDE:
+  - How to get the Wemos installed in the Ardiuno IDE: https://siytek.com/wemos-d1-mini-arduino-wifi/
+  - Install library WiFiManager by tablatronics: https://github.com/tzapu/WiFiManager
+  - Install library JsonArduino by Banoit Blanchon: https://arduinojson.org/?utm_source=meta&utm_medium=library.properties
+  - Install library knolleary/PubSubClient by Nick O'Leary: https://github.com/knolleary/pubsubclient
+ 
+  Happy Coding
+  -------------------------------------------------------------------------*/
 #include <ESP8266WiFi.h>
 #include <ESP8266WebServer.h>
 #include <WiFiClient.h>
