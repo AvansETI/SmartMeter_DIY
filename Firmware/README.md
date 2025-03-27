@@ -2,7 +2,7 @@
 
 You can find here the firmware for the SmartMeter project. It uses a Wemos D1 mini lite
 (https://www.wemos.cc/en/latest/d1/d1_mini_lite.html). Note that only the last version is
-available that is used by the hardware version 2 and 3.
+available that is used by the hardware version 2.0 and 2.1.
 
 ## ArduinoSketch / sm-esp8266
 
@@ -18,11 +18,7 @@ when you are finished, you can compile and upload the sketch. In the case, you l
 you can create the software yourself. We appreciate contribution by pull requests! You can become
 part of the project as well.
 
-This project is last updated in january 2022
+This project is actively maintained, see the release for the latest updates
 
-## PlatformIO
-
-Some developers like to use platformIO, so therefore this is also added to the repository. Note that the
-ArduinoSketch is the main firmware that contains always the latest changes.
 
 
