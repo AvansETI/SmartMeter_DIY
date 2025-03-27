@@ -1,5 +1,7 @@
 name: release-sm-esp8266
-on: [push, pull_request]
+on:
+  push:
+    branches: master
 permissions:
   contents: write
   pages: write
@@ -47,11 +49,12 @@ jobs:
 
       - name: Compile Sketch
         run: |
-          arduino-cli compile --fqbn esp8266:esp8266:d1_mini_pro Firmware/sm-esp8266 -v -e
+          arduino-cli compile --fqbn esp8266:esp8266:d1_mini_lite Firmware/sm-esp8266 -v -e
+#          arduino-cli compile --fqbn esp8266:esp8266:d1_mini_pro Firmware/sm-esp8266 -v -e
 
       - name: List files
         run: |
-          ls -l Firmware/sm-esp8266/build/esp8266.esp8266.d1_mini_pro
+          ls -l Firmware/sm-esp8266/build/esp8266.esp8266.d1_mini_lite
       
       - name: Release
         uses: softprops/action-gh-release@v2
@@ -60,14 +63,12 @@ jobs:
           name: "Release ${{env.VERSION}}"
           tag_name: ${{env.VERSION_TAG}}
           files: |
-            Firmware/sm-esp8266/build/esp8266.esp8266.d1_mini_pro/sm-esp8266.ino.bin
-#           Firmware/sm-esp8266/build/esp8266.esp8266.d1_mini_pro/sm-esp8266.ino.elf
-#           Firmware/sm-esp8266/build/esp8266.esp8266.d1_mini_pro/sm-esp8266.ino.map
+            Firmware/sm-esp8266/build/esp8266.esp8266.d1_mini_lite/sm-esp8266.ino.bin
 
       - name: Prepare Files
         run: |
           mkdir -p deploy
-          cp Firmware/sm-esp8266/build/esp8266.esp8266.d1_mini_pro/sm-esp8266.ino.bin deploy/.
+          cp Firmware/sm-esp8266/build/esp8266.esp8266.d1_mini_lite/sm-esp8266.ino.bin deploy/.
           cp flasher/index.html deploy/.
           echo "{ \"name\": \"P1 Smart Meter\"," > deploy/manifest.json
           echo "  \"version\": \"${{env.VERSION}}\"," >> deploy/manifest.json
