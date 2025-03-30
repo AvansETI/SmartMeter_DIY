@@ -395,12 +395,12 @@ Version :      DMK, Initial code
   if ( MDNS.begin("diy_smartmeter") ) { 
     MDNS.addService("http", "tcp", 80);     // Webserver
     MDNS.addService("p1data", "tcp", 3141); // TCP/IP P1 data provider server
-    Serial.println("mDNS");
-    Serial.println("\tmDNS URL        : diy_smartmeter.local");
-    Serial.println("\tWeb server      : diy_smartmeter.local:80");
-    Serial.println("\tData server     : diy_smartmeter.local:3141");
+    Serial.printf("mDNS\n");
+    Serial.printf("\tmDNS URL        : %s\n", "diy_smartmeter.local");
+    Serial.printf("\tWeb server      : %s\n", "diy_smartmeter.local:80");
+    Serial.printf("\tData server     : %s\n", "diy_smartmeter.local:3141");
   } else {
-    Serial.println("mDNS:   Could not start the mDNS service!");
+    Serial.printf("mDNS:   Could not start the mDNS service!\n");
   }
 
   Serial.printf("***************************************************\n\n");
