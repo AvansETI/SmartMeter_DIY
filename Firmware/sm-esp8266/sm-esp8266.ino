@@ -34,6 +34,9 @@
   V1.5: Added webserver to get insight into the smartmeter readings, added
         TCP/IP service (port 3141) to get actual P1 message and fixed mDNS
         so devices can be found by diy_smartmeter.local on your network (ms: jan 2025)
+  V1.6: Migrated from SPIFSS (deprecated) to LittleFS and changed WiFiServer.availble (deprecated) to .accept. 
+        Migrated ArduinoJSON 6 to 7: https://arduinojson.org/v7/how-to/upgrade-from-v6/
+        Added extra information to serial about the mDNS service and updated libraries.
 
   Installation Arduino IDE:
   - How to get the Wemos installed in the Ardiuno IDE: https://siytek.com/wemos-d1-mini-arduino-wifi/
@@ -50,11 +53,10 @@
 #include <Ticker.h>
 #include <ESP8266mDNS.h>
 #include <ArduinoJson.h>
-#include <FS.h>
+#include <LittleFS.h>
 #include <Ticker.h>
 
 #include "PubSubClient.h"
-// FIXED in Library: No actions needed. Old mgs: 'MAKE SURE: in PubSubClient.h change MQTT_MAX_PACKET_SIZE to 2048 !!'
 
 // Homeserver credentials
 #include "MqttSendlab.h"
@@ -393,9 +395,12 @@ Version :      DMK, Initial code
   if ( MDNS.begin("diy_smartmeter") ) { 
     MDNS.addService("http", "tcp", 80);     // Webserver
     MDNS.addService("p1data", "tcp", 3141); // TCP/IP P1 data provider server
-    Serial.println("mDNS: Started");
+    Serial.println("mDNS");
+    Serial.println("\tmDNS URL        : diy_smartmeter.local");
+    Serial.println("\tWeb server      : diy_smartmeter.local:80");
+    Serial.println("\tData server     : diy_smartmeter.local:3141");
   } else {
-    Serial.println("mDNS: Error");
+    Serial.println("mDNS:   Could not start the mDNS service!");
   }
 
   Serial.printf("***************************************************\n\n");
@@ -464,7 +469,7 @@ Version :      DMK, Initial code
         if ( tcpServerClient ) {
           tcpServerClient.stop();
         }
-        tcpServerClient = tcpServer.available();
+        tcpServerClient = tcpServer.accept();
         char t[] = "Smartmeter P1\n";
         tcpServerClient.write(t, strlen(t));
       }
@@ -604,9 +609,9 @@ Version :      DMK, Initial code
 {
   bool retval = false;
   
-  if( SPIFFS.begin() ) {
-    if( SPIFFS.exists("/config.json") ) {
-       File configFile = SPIFFS.open("/config.json","r");
+  if( LittleFS.begin() ) {
+    if( LittleFS.exists("/config.json") ) {
+       File configFile = LittleFS.open("/config.json","r");
        if( configFile ) {
 
           size_t size = configFile.size();
@@ -617,7 +622,8 @@ Version :      DMK, Initial code
           std::unique_ptr<char[]> buf(new char[size]);
           configFile.readBytes(buf.get(), size);
         
-          StaticJsonDocument<512> doc;
+          //StaticJsonDocument<512> doc; // migration
+          JsonDocument doc;
           DeserializationError error = deserializeJson(doc, buf.get());
           
           if( error == DeserializationError::Ok ) {
@@ -648,14 +654,15 @@ Version :      DMK, Initial code
 
   deleteAppConfig(); // Delete config file if exists
 
-  StaticJsonDocument<512> doc;
+  //StaticJsonDocument<512> doc; // migration
+  JsonDocument doc;
   doc["MQTT_USERNAME"] = app_config->mqtt_username;
   doc["MQTT_PASSWORD"] = app_config->mqtt_password;
   doc["MQTT_HOST"] = app_config->mqtt_remote_host;
   doc["MQTT_PORT"] = app_config->mqtt_remote_port;
   doc["P1_BAUDRATE"]= app_config->p1_baudrate;
   
-  File configFile = SPIFFS.open("/config.json","w+");
+  File configFile = LittleFS.open("/config.json","w+");
   if( configFile ) {
      serializeJson(doc, configFile);
      configFile.close();
@@ -675,9 +682,9 @@ Version :      DMK, Initial code
 *******************************************************************/
 {
   boolean retval = false;
-  if( SPIFFS.begin() ) {
-    if( SPIFFS.exists("/config.json") ) {
-      if( SPIFFS.remove("/config.json") ) {
+  if( LittleFS.begin() ) {
+    if( LittleFS.exists("/config.json") ) {
+      if( LittleFS.remove("/config.json") ) {
         retval = true;
       }
     }
@@ -978,21 +985,24 @@ void mqtt_heartbeat(void) {
     mqtt_throttle_prev = mqtt_throttle_cur; 
   
     // Construct json object and publish
-    DynamicJsonDocument doc(2048);
+    //DynamicJsonDocument doc(2048); // migration
+    JsonDocument doc;
     JsonObject root = doc.to<JsonObject>();
     
-    JsonObject datagram = root.createNestedObject("datagram");
+    //JsonObject datagram = root.createNestedObject("datagram"); // migration
+    JsonObject datagram = root["datagram"].to<JsonObject>();
     datagram["p1"] = p1_buf;
 
     datagram["signature"] = app_config.mqtt_id;
 
-    // MS: Why are these values inserted in here? Can these be removed?
-    JsonObject s0 = datagram.createNestedObject("s0");
+    //JsonObject s0 = datagram.createNestedObject("s0"); // migration
+    JsonObject s0 = datagram["s0"].to<JsonObject>();
     s0["unit"] = "W";
     s0["label"] = "e-car charger";
     s0["value"] = 0;
     
-    JsonObject s1 = datagram.createNestedObject("s1");
+    //JsonObject s1 = datagram.createNestedObject("s1"); // migration
+    JsonObject s1 = datagram["s1"].to<JsonObject>();
     s1["unit"] = "W";
     s1["label"] = "solar panels";
     s1["value"] = 0;
