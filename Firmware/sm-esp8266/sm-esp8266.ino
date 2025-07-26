@@ -24,7 +24,8 @@
   
   Arduino sketch to mqtt Dutch Smart Meter P1 datagrams.
 
-  See  for more information.
+  See for more information: https://github.com/AvansETI/SmartMeter_DIY.
+  Flash latest firmware version for the Wemos D1 mini lite (ESP8266): https://avanseti.github.io/SmartMeter_DIY/.
 
   V1.0: Initial: dkroeske(dkroeske@gmail.com), august 2019
   V1.1: Reroute pinning PCB, updated bootsequence
