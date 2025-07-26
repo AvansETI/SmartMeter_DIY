@@ -20,8 +20,8 @@ jobs:
             - name: WiFiManager
             - name: ArduinoJson
             - name: PubSubClient
-#          cli-compile-flags: "-e"  # Does not work, created issue: https://github.com/arduino/compile-sketches/issues/368
-
+          cli-compile-flags: |
+            - -e
       - name: List Files
         run: |
-          ls -l Firmware/sm-esp8266
+          ls -l Firmware/sm-esp8266/build/esp8266.esp8266.d1_mini_pro

@@ -1,6 +1,6 @@
 /*-------------------------------------------------------------------------
   The MIT License (MIT)
-  Copyright © 2019 <copyright Diederich Kroeske>
+  Copyright © 2025 Avans Hogeschool Lectoraat Smart Energy
   
   Permission is hereby granted, free of charge, to any person obtaining a 
   copy of this software and associated documentation files (the “Software”), 
@@ -24,7 +24,8 @@
   
   Arduino sketch to mqtt Dutch Smart Meter P1 datagrams.
 
-  See  for more information.
+  See for more information: https://github.com/AvansETI/SmartMeter_DIY.
+  Flash latest firmware version for the Wemos D1 mini lite (ESP8266): https://avanseti.github.io/SmartMeter_DIY/.
 
   V1.0: Initial: dkroeske(dkroeske@gmail.com), august 2019
   V1.1: Reroute pinning PCB, updated bootsequence
@@ -74,12 +75,12 @@
 // D0     GPIO16
 // D1     GPIO5   SCL
 // D2     GPIO4   SDA
-// D3     GPIO0       Must be PULLED HIGH during boot (Pulled up on WeMos board)
-// D4     GPIO2       Must be PULLED HIGH during boot (Pulled up on WeMos board)
+// D3     GPIO0   Must be PULLED HIGH during boot (Pulled up on WeMos board)
+// D4     GPIO2   Must be PULLED HIGH during boot (Pulled up on WeMos board)
 // D5     GPIO14  SCL
 // D6     GPIO12  MISO  
 // D7     GPIO13
-// D8     GPIO15      Boot mode, must be LOW during flash boot
+// D8     GPIO15  Boot mode, must be LOW during flash boot
 // A0             Analog
 
 #define RST_PIN         D2  // Wemos D2 (GPIO4)
@@ -130,6 +131,7 @@ WiFiClient mqttWifiClient;
 
 // Only with some dummy values seems to work ... instead of mqttClient();
 PubSubClient mqttClient("", 0, mqttWifiClient);
+uint32_t mqttTimer = 0; // Time used to reconnect to the mqtt server, when disconnected (#26)
 
 #define P1_TELEGRAM_SIZE   2048
 
@@ -139,14 +141,14 @@ char p1_buf[P1_MAX_DATAGRAM_SIZE]; // Complete P1 telegram
 char *p1;
 
 // TCP/IP server to implement the P1 datagram provider variables
-WiFiServer tcpServer(3141); // TCP/IP server
+WiFiServer tcpServer(TCP_DATA_SERVER_PORT); // TCP/IP server
 WiFiClient tcpServerClient; // TCP/IP connected client, only one client is able to connect to the server
 
 // HTTP Web server variables
-#define WEBSERVERDATALENGTH 12*3 // Data points that will be stored
-#define WEBSERVERDATASAMPLERATE 1000*60 // Sample rate to collect the data points in ms
+#define WEBSERVERDATALENGTH HTTP_SERVER_DATA_LENGTH // Data points that will be stored
+#define WEBSERVERDATASAMPLERATE HTTP_SERVER_SAMPLE_RATE // Sample rate to collect the data points in ms
 ESP8266WebServer server(80);   // WebServer
-bool webServerInitialized = false; 
+bool webServerInitialized = false;
 uint16_t webDataPointer = 0; // Pointer to the insert point
 uint32_t webserverTimer = 0; // Time used to implement the sample rate
 void addWebDataP1(char* p1); // Add data point to the data store from P1 message
@@ -447,11 +449,13 @@ Version :      DMK, Initial code
   // Check for IP connection 
   if( WiFi.status() == WL_CONNECTED) {
 
-    // Handle mqtt
-    if( !mqttClient.connected() ) {
-      smartLedFlash(RED); // Added to see when MQTT is not connected
+    // Handle mqtt, if not connected it uses a timer to reconnect every MQTT_RETRY_TIMEOUT ms. (#26)
+    if( !mqttClient.connected() && ( mqttTimer == 0 || millis() > mqttTimer + MQTT_RETRY_TIMEOUT ) ) {
+      smartLedFlash(RED); // Added to see when MQTT is not connected (#26: causing a delay of 150ms)
       mqtt_connect();
-      delay(250);
+      //delay(250); #26: removed, while it causes problems for the MDNS, HTTP and TCP server updates
+      mqttTimer = millis(); // Set timer to reconnect over MQTT_RETRY_TIMEOUT ms (#26)
+
     } else {
       // Handle MQTT loop
       mqttClient.loop();
@@ -470,7 +474,7 @@ Version :      DMK, Initial code
           tcpServerClient.stop();
         }
         tcpServerClient = tcpServer.accept();
-        char t[] = "Smartmeter P1\n";
+        char t[] = "DIY Smartmeter P1\n";
         tcpServerClient.write(t, strlen(t));
       }
     }
@@ -547,6 +551,10 @@ Version :   DMK, Initial code
 
     // Set callback
     mqttClient.setCallback(mqtt_callback);
+
+    // Set timer to zero (#26)
+    mqttTimer = 0;
+
     DEBUG_PRINTF("%s: MQTT connected to %s:%d\n", __FUNCTION__, host, port);
   } else {
     DEBUG_PRINTF("%s: MQTT connection ERROR (%s:%d)\n", __FUNCTION__, host, port);
