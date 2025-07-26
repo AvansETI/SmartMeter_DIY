@@ -454,7 +454,7 @@ Version :      DMK, Initial code
       smartLedFlash(RED); // Added to see when MQTT is not connected (#26: causing a delay of 150ms)
       mqtt_connect();
       //delay(250); #26: removed, while it causes problems for the MDNS, HTTP and TCP server updates
-      mqttTime = millis(); // Set timer to reconnect over MQTT_RETRY_TIMEOUT ms (#26)
+      mqttTimer = millis(); // Set timer to reconnect over MQTT_RETRY_TIMEOUT ms (#26)
 
     } else {
       // Handle MQTT loop
