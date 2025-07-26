@@ -24,4 +24,4 @@ jobs:
             - -e
       - name: List Files
         run: |
-          ls -l Firmware/sm-esp8266/build
+          ls -l Firmware/sm-esp8266/build/esp8266.esp8266.d1_mini_pro
