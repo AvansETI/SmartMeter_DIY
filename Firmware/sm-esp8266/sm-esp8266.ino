@@ -141,14 +141,14 @@ char p1_buf[P1_MAX_DATAGRAM_SIZE]; // Complete P1 telegram
 char *p1;
 
 // TCP/IP server to implement the P1 datagram provider variables
-WiFiServer tcpServer(3141); // TCP/IP server
+WiFiServer tcpServer(TCP_DATA_SERVER_PORT); // TCP/IP server
 WiFiClient tcpServerClient; // TCP/IP connected client, only one client is able to connect to the server
 
 // HTTP Web server variables
-#define WEBSERVERDATALENGTH 12*3 // Data points that will be stored
-#define WEBSERVERDATASAMPLERATE 1000*60 // Sample rate to collect the data points in ms
+#define WEBSERVERDATALENGTH HTTP_SERVER_DATA_LENGTH // Data points that will be stored
+#define WEBSERVERDATASAMPLERATE HTTP_SERVER_SAMPLE_RATE // Sample rate to collect the data points in ms
 ESP8266WebServer server(80);   // WebServer
-bool webServerInitialized = false; 
+bool webServerInitialized = false;
 uint16_t webDataPointer = 0; // Pointer to the insert point
 uint32_t webserverTimer = 0; // Time used to implement the sample rate
 void addWebDataP1(char* p1); // Add data point to the data store from P1 message
@@ -450,7 +450,7 @@ Version :      DMK, Initial code
   if( WiFi.status() == WL_CONNECTED) {
 
     // Handle mqtt, if not connected it uses a timer to reconnect every MQTT_RETRY_TIMEOUT ms. (#26)
-    if( !mqttClient.connected() && ( mqttTimer == 0 || millis() - mqttTimer > MQTT_RETRY_TIMEOUT ) ) {
+    if( !mqttClient.connected() && ( mqttTimer == 0 || millis() > mqttTimer + MQTT_RETRY_TIMEOUT ) ) {
       smartLedFlash(RED); // Added to see when MQTT is not connected (#26: causing a delay of 150ms)
       mqtt_connect();
       //delay(250); #26: removed, while it causes problems for the MDNS, HTTP and TCP server updates
@@ -474,7 +474,7 @@ Version :      DMK, Initial code
           tcpServerClient.stop();
         }
         tcpServerClient = tcpServer.accept();
-        char t[] = "Smartmeter P1\n";
+        char t[] = "DIY Smartmeter P1\n";
         tcpServerClient.write(t, strlen(t));
       }
     }

@@ -21,10 +21,16 @@
   THE SOFTWARE.
 */
 
+// Remote configuration
 #define MQTT_USERNAME "smartmeter"
 #define MQTT_PASSWORD "se_smartmeter"
 #define MQTT_REMOTE_HOST "mqtt.sendlab.nl"
 #define MQTT_REMOTE_PORT "11883"
 #define MQTT_TOPIC "smartmeter/raw"
 #define MQTT_MSGBUF_SIZE 2048
-#define MQTT_RETRY_TIMEOUT 10000
+#define MQTT_RETRY_TIMEOUT 60'000
+
+// Local configuration
+#define TCP_DATA_SERVER_PORT 3141
+#define HTTP_SERVER_DATA_LENGTH 12*3 // Data points that will be stored
+#define HTTP_SERVER_SAMPLE_RATE 1000*60 // Sample rate to collect the data points in ms

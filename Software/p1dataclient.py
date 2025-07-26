@@ -34,10 +34,10 @@ print('connecting to %s port %s' % server_address)
 sock.connect(server_address)
 print('connected to %s port %s' % server_address)
 try:    
-    data = sock.recv(1024)
+    data = sock.recv(2048)
     while data:
         print('"%s"' % data)
-        data = sock.recv(1024)
+        data = sock.recv(2048)
 
 finally:
     print('closing socket')
