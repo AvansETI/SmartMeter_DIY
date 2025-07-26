@@ -1,6 +1,6 @@
 /*-------------------------------------------------------------------------
   The MIT License (MIT)
-  Copyright © 2019 <copyright Diederich Kroeske>
+  Copyright © 2025 Avans Hogeschool Lectoraat Smart Energy
   
   Permission is hereby granted, free of charge, to any person obtaining a 
   copy of this software and associated documentation files (the “Software”), 
@@ -74,12 +74,12 @@
 // D0     GPIO16
 // D1     GPIO5   SCL
 // D2     GPIO4   SDA
-// D3     GPIO0       Must be PULLED HIGH during boot (Pulled up on WeMos board)
-// D4     GPIO2       Must be PULLED HIGH during boot (Pulled up on WeMos board)
+// D3     GPIO0   Must be PULLED HIGH during boot (Pulled up on WeMos board)
+// D4     GPIO2   Must be PULLED HIGH during boot (Pulled up on WeMos board)
 // D5     GPIO14  SCL
 // D6     GPIO12  MISO  
 // D7     GPIO13
-// D8     GPIO15      Boot mode, must be LOW during flash boot
+// D8     GPIO15  Boot mode, must be LOW during flash boot
 // A0             Analog
 
 #define RST_PIN         D2  // Wemos D2 (GPIO4)
@@ -131,7 +131,6 @@ WiFiClient mqttWifiClient;
 // Only with some dummy values seems to work ... instead of mqttClient();
 PubSubClient mqttClient("", 0, mqttWifiClient);
 uint32_t mqttTimer = 0; // Time used to reconnect to the mqtt server, when disconnected (#26)
-#define MQTT_RETRY_TIMEOUT 5000 // Every 5 seconds the mqtt server will try to reconnect (#26)
 
 #define P1_TELEGRAM_SIZE   2048
 
