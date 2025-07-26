@@ -28,7 +28,7 @@
 #define MQTT_REMOTE_PORT "11883"
 #define MQTT_TOPIC "smartmeter/raw"
 #define MQTT_MSGBUF_SIZE 2048
-#define MQTT_RETRY_TIMEOUT 60'000
+#define MQTT_RETRY_TIMEOUT 60000
 
 // Local configuration
 #define TCP_DATA_SERVER_PORT 3141
