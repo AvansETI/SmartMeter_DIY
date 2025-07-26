@@ -130,6 +130,8 @@ WiFiClient mqttWifiClient;
 
 // Only with some dummy values seems to work ... instead of mqttClient();
 PubSubClient mqttClient("", 0, mqttWifiClient);
+uint32_t mqttTimer = 0; // Time used to reconnect to the mqtt server, when disconnected (#26)
+#define MQTT_RETRY_TIMEOUT 5000 // Every 5 seconds the mqtt server will try to reconnect (#26)
 
 #define P1_TELEGRAM_SIZE   2048
 
@@ -447,11 +449,13 @@ Version :      DMK, Initial code
   // Check for IP connection 
   if( WiFi.status() == WL_CONNECTED) {
 
-    // Handle mqtt
-    if( !mqttClient.connected() ) {
-      smartLedFlash(RED); // Added to see when MQTT is not connected
+    // Handle mqtt, if not connected it uses a timer to reconnect every MQTT_RETRY_TIMEOUT ms. (#26)
+    if( !mqttClient.connected() && ( mqttTimer == 0 || millis() - mqttTimer > MQTT_RETRY_TIMEOUT ) ) {
+      smartLedFlash(RED); // Added to see when MQTT is not connected (#26: causing a delay of 150ms)
       mqtt_connect();
-      delay(250);
+      //delay(250); #26: removed, while it causes problems for the MDNS, HTTP and TCP server updates
+      mqttTime = millis(); // Set timer to reconnect over MQTT_RETRY_TIMEOUT ms (#26)
+
     } else {
       // Handle MQTT loop
       mqttClient.loop();
@@ -547,6 +551,10 @@ Version :   DMK, Initial code
 
     // Set callback
     mqttClient.setCallback(mqtt_callback);
+
+    // Set timer to zero (#26)
+    mqttTimer = 0;
+
     DEBUG_PRINTF("%s: MQTT connected to %s:%d\n", __FUNCTION__, host, port);
   } else {
     DEBUG_PRINTF("%s: MQTT connection ERROR (%s:%d)\n", __FUNCTION__, host, port);
