@@ -467,20 +467,6 @@ Version :      DMK, Initial code
     // Handle HTTP web server
     server.handleClient(); // Listen for HTTP requests from clients
 
-    /* replacing
-    // Handle client connection to the TCP/IP server
-    if (tcpServer.hasClient() ) {
-      if ( !tcpServerClient || !tcpServerClient.connected() ) { // Check if free or disconnected
-        if ( tcpServerClient ) {
-          tcpServerClient.stop();
-        }
-        tcpServerClient = tcpServer.accept();
-        char t[] = "DIY Smartmeter P1\n";
-        tcpServerClient.write(t, strlen(t));
-      }
-    }
-    */
-
     // Handle the TCP data server clients
     WiFiClient client = tcpServer.accept();
     if (client) { // we have a new client
