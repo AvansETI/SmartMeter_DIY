@@ -38,6 +38,7 @@
   V1.6: Migrated from SPIFSS (deprecated) to LittleFS and changed WiFiServer.availble (deprecated) to .accept. 
         Migrated ArduinoJSON 6 to 7: https://arduinojson.org/v7/how-to/upgrade-from-v6/
         Added extra information to serial about the mDNS service and updated libraries.
+  V1.7: Improved TCP data server and added the configuration for more than one client to connect.
 
   Installation Arduino IDE:
   - How to get the Wemos installed in the Ardiuno IDE: https://siytek.com/wemos-d1-mini-arduino-wifi/
@@ -142,7 +143,7 @@ char *p1;
 
 // TCP/IP server to implement the P1 datagram provider variables
 WiFiServer tcpServer(TCP_DATA_SERVER_PORT); // TCP/IP server
-WiFiClient tcpServerClient; // TCP/IP connected client, only one client is able to connect to the server
+WiFiClient tcpServerClient[TCP_DATA_SERVER_MAX_CLIENTS]; // TCP/IP connected clients
 
 // HTTP Web server variables
 #define WEBSERVERDATALENGTH HTTP_SERVER_DATA_LENGTH // Data points that will be stored
@@ -468,19 +469,26 @@ Version :      DMK, Initial code
     server.handleClient(); // Listen for HTTP requests from clients
 
     // Handle the TCP data server clients
+    uint8_t i = 0;
+    bool foundOpenWiFiClient = false;
     WiFiClient client = tcpServer.accept();
     if (client) { // we have a new client
-      if ( tcpServerClient.connected() ) { // A client already is connected to the server
+      while ( !foundOpenWiFiClient && i < TCP_DATA_SERVER_MAX_CLIENTS ) {
+        if ( !tcpServerClient[i].connected() ) {
+          tcpServerClient[i] = client;
+          tcpServerClient[i].setNoDelay(true);
+          char t[] = "DIY Smartmeter P1\n";
+          tcpServerClient[i].write(t, strlen(t));
+          foundOpenWiFiClient = true;
+        }
+        i++;
+      }
+
+      if ( !foundOpenWiFiClient ) { // No client found, all clients are already connected
         char t[] = "DIY Smartmeter P1 - too many clients connected.\n";
         client.write(t, strlen(t));
         client.stop();
-      
-      } else {
-        tcpServerClient = client;
-        tcpServerClient.setNoDelay(true);
-        char t[] = "DIY Smartmeter P1\n";
-        tcpServerClient.write(t, strlen(t));
-      }
+      }      
     }
 
   }
@@ -491,8 +499,10 @@ Version :      DMK, Initial code
       addWebDataP1(p1_buf);
       webserverTimer = millis();
     }
-    if ( tcpServerClient.connected() ) { // Send the P1 data to the connected client
-      tcpServerClient.write(p1_buf, strlen(p1_buf));
+    for ( uint8_t i=0; i < TCP_DATA_SERVER_MAX_CLIENTS; i++ ) {
+      if ( tcpServerClient[i].connected() ) { // Send the P1 data to the connected client
+        tcpServerClient[i].write(p1_buf, strlen(p1_buf));
+      }
     }
     raiseEvent(EV_P1_AVAILABLE);
   }

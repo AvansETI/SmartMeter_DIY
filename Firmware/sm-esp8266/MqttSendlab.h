@@ -32,5 +32,6 @@
 
 // Local configuration
 #define TCP_DATA_SERVER_PORT 3141
+#define TCP_DATA_SERVER_MAX_CLIENTS 2 // Too many clients will have effect on performance (1-5)
 #define HTTP_SERVER_DATA_LENGTH 12*3 // Data points that will be stored
 #define HTTP_SERVER_SAMPLE_RATE 1000*60 // Sample rate to collect the data points in ms
