@@ -39,6 +39,7 @@
         Migrated ArduinoJSON 6 to 7: https://arduinojson.org/v7/how-to/upgrade-from-v6/
         Added extra information to serial about the mDNS service and updated libraries.
   V1.7: Improved TCP data server and added the configuration for more than one client to connect.
+  V2.0: Adapted the source code to be compiled for the Wemos S2 mini as well that is based on ESP32S2.
 
   Installation Arduino IDE:
   - How to get the Wemos installed in the Ardiuno IDE: https://siytek.com/wemos-d1-mini-arduino-wifi/
@@ -48,17 +49,24 @@
  
   Happy Coding
   -------------------------------------------------------------------------*/
+#if defined(ESP8266)
 #include <ESP8266WiFi.h>
 #include <ESP8266WebServer.h>
+#include <ESP8266mDNS.h>
+#include <Ticker.h>
+
+#elif defined(ESP32)
+#include <WiFi.h>
+#include <WebServer.h>
+#include <ESPmDNS.h>
+#endif
+
 #include <WiFiClient.h>
 #include <WiFiManager.h>
 #include <Ticker.h>
-#include <ESP8266mDNS.h>
 #include <ArduinoJson.h>
 #include <LittleFS.h>
-#include <Ticker.h>
-
-#include "PubSubClient.h"
+#include <PubSubClient.h>
 
 // Homeserver credentials
 #include "MqttSendlab.h"
@@ -71,6 +79,7 @@
  #define DEBUG_PRINTF
 #endif
 
+#if defined(ESP8266)
 //
 // WeMos  ESP8266 Use Warning
 // D0     GPIO16
@@ -88,6 +97,38 @@
 #define RGB_R_PIN       D6  // Wemos D6 (GPIO12)
 #define RGB_G_PIN       D1  // Wemos D1 (GPIO5)
 #define RGB_B_PIN       D5  // Wemos D5 (GPIO14)
+
+#elif defined(ESP32)
+//
+// WeMos  ESP32S2 Use Warning (pin compatible with Wemos D1 mini lite)
+// IO15           Onboard led
+// IO18           Onboard pull-up
+// 
+// Pin mapping
+// WEMOS D1 mini	WEMOS S2 mini
+// RST        		EN
+// A0		          3
+// D0		          5
+// D5		          7
+// D6		          9
+// D7		          11
+// D8		          12
+// 3V3		        3V3
+// TX		          40
+// RX		          38
+// D1		          36
+// D2		          34
+// D3		          21
+// D4		          17
+// GND		        GND
+// 5V		          VBUS
+//
+#define RST_PIN         34 // Wemos GPIO34
+#define RGB_R_PIN       9  // Wemos GPIO9
+#define RGB_G_PIN       36 // Wemos GPIO36
+#define RGB_B_PIN       7  // Wemos GPIO7
+#define SM_RXD          11 // Wemos GPIO11
+#endif
 
 // Minimun delay between mqtt publish events. Prevents mqtt spam e.g. DSMR 5.0 updates every second!
 #define MQTT_TOPIC_UPDATE_RATE_MS  20000
@@ -148,7 +189,11 @@ WiFiClient tcpServerClient[TCP_DATA_SERVER_MAX_CLIENTS]; // TCP/IP connected cli
 // HTTP Web server variables
 #define WEBSERVERDATALENGTH HTTP_SERVER_DATA_LENGTH // Data points that will be stored
 #define WEBSERVERDATASAMPLERATE HTTP_SERVER_SAMPLE_RATE // Sample rate to collect the data points in ms
-ESP8266WebServer server(80);   // WebServer
+#if defined(ESP8266)
+ESP8266WebServer server(80); // WebServer
+#elif defined(ESP32)
+WebServer server(80);
+#endif
 bool webServerInitialized = false;
 uint16_t webDataPointer = 0; // Pointer to the insert point
 uint32_t webserverTimer = 0; // Time used to implement the sample rate
@@ -253,6 +298,23 @@ Version :      DMK, Initial code
 }
 
 /******************************************************************/
+void resetHardware () 
+/* 
+short: Performs a hardware reset of the chip.        
+inputs:        
+outputs: 
+notes:         
+Version: MS, Initial code
+*******************************************************************/
+{
+#if defined(ESP8266)
+  ESP.reset();
+#elif defined(ESP32)
+  esp_restart();
+#endif
+}
+
+/******************************************************************/
 void setup() 
 /* 
 short:         initial setup(), runes only one time
@@ -291,7 +353,7 @@ Version :      DMK, Initial code
        smartLedFlash(BLUE);
        delay(250);
     }
-    ESP.reset();
+    resetHardware();
   }
 
   // Read config file or generate default
@@ -337,7 +399,7 @@ Version :      DMK, Initial code
   
   if( !wifiManager.autoConnect("ETI EMON config")) {
     delay(1000);
-    ESP.reset();
+    resetHardware();
   }  
 
   //
@@ -372,6 +434,7 @@ Version :      DMK, Initial code
   }
 
   // Always print config to terminal before swapping serial port
+#if defined(ESP8266)
   Serial.begin(115200, SERIAL_8N1);
 
   Serial.printf("\n");
@@ -381,6 +444,17 @@ Version :      DMK, Initial code
   Serial.printf("\tCore Version    : %s\n", ESP.getCoreVersion().c_str() );
   Serial.printf("\tCore Frequency  : %d Mhz\n", ESP.getCpuFreqMHz());
   Serial.printf("\tLast reset      : %s\n", ESP.getResetReason().c_str() );
+
+#elif defined(ESP32)
+  Serial.begin(115200);
+  Serial.printf("\n");
+  Serial.printf("************ DIY Smartmeter KIT********************\n");
+  Serial.printf("ESP32S2 info\n");
+  Serial.printf("\tSDK Version     : %s\n", ESP.getSdkVersion() );
+  Serial.printf("\tCore Version    : %s\n", ESP.getCoreVersion() );
+  Serial.printf("\tCore Frequency  : %ld Mhz\n", ESP.getCpuFreqMHz());
+  Serial.printf("\tLast reset      : %d\n", esp_reset_reason() );
+#endif
 
   Serial.printf("MQTT settings\n");
   Serial.printf("\tmqtt_username   : %s\n", app_config.mqtt_username);
@@ -409,6 +483,7 @@ Version :      DMK, Initial code
   Serial.printf("***************************************************\n\n");
   Serial.flush();
 
+#if defined(ESP8266)
   // Set P1 port baudrate. DSMR V2 uses 9600 baud. Otherwise 115200 baud
   long baudrate = atol(app_config.p1_baudrate);
   switch(baudrate){
@@ -431,6 +506,22 @@ Version :      DMK, Initial code
   
   // Relocate Serial Port
   Serial.swap();
+
+#elif defined(ESP32)
+#define BUF_SIZE (1024)
+  uart_config_t uart_config = {
+      .baud_rate = app_config.p1_baudrate,
+      .data_bits = (baudrate == 9600 : UART_DATA_7_BITS, UART_DATA_8_BITS),
+      .parity = (baudrate == 9600 : UART_PARITY_EVEN, UART_PARITY_DISABLE),
+      .stop_bits = UART_STOP_BITS_1,
+      .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
+      .source_clk = UART_SCLK_DEFAULT,
+  };
+  int intr_alloc_flags = 0;
+  ESP_ERROR_CHECK(uart_param_config(UART_NUM_1, &uart_config));
+  ESP_ERROR_CHECK(uart_driver_install(UART_NUM_1, BUF_SIZE * 2, 0, 0, NULL, intr_alloc_flags));
+  ESP_ERROR_CHECK(uart_set_pin(UART_NUM_1, 10, SM_RXD, -1, -1));
+#endif
   
   // Initialise FSM
   initFSM(STATE_START, EV_IDLE);
