@@ -56,6 +56,8 @@
 #include <Ticker.h>
 
 #elif defined(ESP32)
+#include <driver/uart.h>
+#include <driver/gpio.h>
 #include <WiFi.h>
 #include <WebServer.h>
 #include <ESPmDNS.h>
@@ -483,9 +485,9 @@ Version :      DMK, Initial code
   Serial.printf("***************************************************\n\n");
   Serial.flush();
 
+  long baudrate = atol(app_config.p1_baudrate);
 #if defined(ESP8266)
   // Set P1 port baudrate. DSMR V2 uses 9600 baud. Otherwise 115200 baud
-  long baudrate = atol(app_config.p1_baudrate);
   switch(baudrate){
     case 9600:
       Serial.begin(9600, SERIAL_7E1);
@@ -510,17 +512,18 @@ Version :      DMK, Initial code
 #elif defined(ESP32)
 #define BUF_SIZE (1024)
   uart_config_t uart_config = {
-      .baud_rate = app_config.p1_baudrate,
-      .data_bits = (baudrate == 9600 : UART_DATA_7_BITS, UART_DATA_8_BITS),
-      .parity = (baudrate == 9600 : UART_PARITY_EVEN, UART_PARITY_DISABLE),
+      .baud_rate = baudrate,
+      .data_bits = (baudrate == 9600 ? UART_DATA_7_BITS : UART_DATA_8_BITS),
+      .parity = (baudrate == 9600 ? UART_PARITY_EVEN : UART_PARITY_DISABLE),
       .stop_bits = UART_STOP_BITS_1,
       .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
       .source_clk = UART_SCLK_DEFAULT,
+      .flags = 0,
   };
   int intr_alloc_flags = 0;
   ESP_ERROR_CHECK(uart_param_config(UART_NUM_1, &uart_config));
   ESP_ERROR_CHECK(uart_driver_install(UART_NUM_1, BUF_SIZE * 2, 0, 0, NULL, intr_alloc_flags));
-  ESP_ERROR_CHECK(uart_set_pin(UART_NUM_1, 10, SM_RXD, -1, -1));
+  ESP_ERROR_CHECK(uart_set_pin(UART_NUM_1, 10, SM_RXD, -1, -1)); // GPIO10 is not used in this setup
 #endif
   
   // Initialise FSM
@@ -553,8 +556,10 @@ Version :      DMK, Initial code
       mqttClient.loop();
     }
 
+#if defined(ESP8266)
     // Handle mDNS service
     MDNS.update();
+#endif
 
     // Handle HTTP web server
     server.handleClient(); // Listen for HTTP requests from clients
@@ -677,12 +682,17 @@ notes:
 Version :   DMK, Initial code
 *******************************************************************/
 {
-   char tmp[30];
-   strcpy(topic_string,"EMON19V01");
-   sprintf(tmp,"-%06X",ESP.getChipId());
-   strcat(topic_string,tmp);
-   sprintf(tmp,"-%06X",ESP.getFlashChipId()); 
-   strcat(topic_string,tmp);
+  char tmp[30];
+#if defined(ESP8266)
+  strcpy(topic_string,"EMON19V01");
+  sprintf(tmp,"-%06X",ESP.getChipId());
+  strcat(topic_string,tmp);
+  sprintf(tmp,"-%06X",ESP.getFlashChipId()); 
+  strcat(topic_string,tmp);
+
+#elif defined(ESP32)
+  snprintf(tmp, 23, "SMARTMETER-%11llX", ESP.getEfuseMac());
+#endif
 }
 
 /******************************************************************/
@@ -696,12 +706,17 @@ Version :   DMK, Initial code
 *******************************************************************/
 {
    char tmp[30];
+#if defined(ESP8266)
    strcpy(signature,"2019-ETI-EMON");
    strcat(signature,"-V01");
    sprintf(tmp,"-%06X",ESP.getChipId());
    strcat(signature,tmp);
    sprintf(tmp,"-%06X",ESP.getFlashChipId()); 
    strcat(signature,tmp);
+
+#elif defined(ESP32)
+  sprintf(tmp, "2025-SMARTMETER-%11llX", ESP.getEfuseMac());
+#endif
 }
 
 
@@ -856,9 +871,17 @@ Version :      DMK, Initial code
 {
    bool retval = false;
 
+#if defined(ESP8266)
    if( Serial.available() ) { 
-      while( Serial.available() ) { 
+      while( Serial.available() ) {
          char ch = Serial.read();
+
+#elif defined(ESP32)
+  // TODO: Here we need to use the appropiate serial
+    if( Serial.available() ) { 
+      while( Serial.available() ) {
+         char ch = Serial.read();
+#endif
          switch(p1_msg_state) {
             //
             case P1_MSG_S0:
