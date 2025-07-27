@@ -467,6 +467,7 @@ Version :      DMK, Initial code
     // Handle HTTP web server
     server.handleClient(); // Listen for HTTP requests from clients
 
+    /* replacing
     // Handle client connection to the TCP/IP server
     if (tcpServer.hasClient() ) {
       if ( !tcpServerClient || !tcpServerClient.connected() ) { // Check if free or disconnected
@@ -478,6 +479,24 @@ Version :      DMK, Initial code
         tcpServerClient.write(t, strlen(t));
       }
     }
+    */
+
+    // Handle the TCP data server clients
+    WiFiClient client = tcpServer.accept();
+    if (client) { // we have a new client
+      if ( tcpServerClient.connected() ) { // A client already is connected to the server
+        char t[] = "DIY Smartmeter P1 - too many clients connected.\n";
+        client.write(t, strlen(t));
+        client.stop();
+      
+      } else {
+        tcpServerClient = client;
+        tcpServerClient.setNoDelay(true);
+        char t[] = "DIY Smartmeter P1\n";
+        tcpServerClient.write(t, strlen(t));
+      }
+    }
+
   }
 
   // Capture P1 messages. If P1 msg is available raise MQTT event
