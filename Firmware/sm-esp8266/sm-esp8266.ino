@@ -510,20 +510,15 @@ Version :      DMK, Initial code
   Serial.swap();
 
 #elif defined(ESP32)
-#define BUF_SIZE (1024)
-  uart_config_t uart_config = {
-      .baud_rate = baudrate,
-      .data_bits = (baudrate == 9600 ? UART_DATA_7_BITS : UART_DATA_8_BITS),
-      .parity = (baudrate == 9600 ? UART_PARITY_EVEN : UART_PARITY_DISABLE),
-      .stop_bits = UART_STOP_BITS_1,
-      .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
-      .source_clk = UART_SCLK_DEFAULT,
-      .flags = 0,
-  };
-  int intr_alloc_flags = 0;
-  ESP_ERROR_CHECK(uart_param_config(UART_NUM_1, &uart_config));
-  ESP_ERROR_CHECK(uart_driver_install(UART_NUM_1, BUF_SIZE * 2, 0, 0, NULL, intr_alloc_flags));
-  ESP_ERROR_CHECK(uart_set_pin(UART_NUM_1, 10, SM_RXD, -1, -1)); // GPIO10 is not used in this setup
+  switch(baudrate){
+    case 9600:
+      Serial1.begin(9600, SERIAL_7E1, SM_RXD, 10); // GPIO10 is not used in this setup
+      break;
+
+    default:
+      Serial1.begin(115200, SERIAL_8N1, SM_RXD, 10); // GPIO10 is not used in this setup
+      break;
+  }
 #endif
   
   // Initialise FSM
@@ -877,10 +872,9 @@ Version :      DMK, Initial code
          char ch = Serial.read();
 
 #elif defined(ESP32)
-  // TODO: Here we need to use the appropiate serial
-    if( Serial.available() ) { 
-      while( Serial.available() ) {
-         char ch = Serial.read();
+    if( Serial1.available() ) { 
+      while( Serial1.available() ) {
+         char ch = Serial1.read();
 #endif
          switch(p1_msg_state) {
             //
