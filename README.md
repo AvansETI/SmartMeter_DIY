@@ -2,6 +2,7 @@
 
 [![build-sm-esp8266](https://github.com/AvansETI/SmartMeter_DIY/actions/workflows/build-sm-esp8266.yml/badge.svg?branch=master)](https://github.com/AvansETI/SmartMeter_DIY/actions/workflows/build-sm-esp8266.yml)
 [![release-sm-esp8266](https://github.com/AvansETI/SmartMeter_DIY/actions/workflows/release-sm-8266.yml/badge.svg?branch=master)](https://github.com/AvansETI/SmartMeter_DIY/actions/workflows/release-sm-8266.yml)
+![GitHub Release](https://img.shields.io/github/v/release/:user/:repo)
 [![LICENSE](https://img.shields.io/badge/license-MIT-lightgrey.svg)](https://github.com/AvansETI/SmartMeter_DIY/blob/master/LICENSE)
 
 Bij het Expertisecentrum Technische Innovatie (ETI) van Avans Hogeschool te Breda is een goedkope en makkelijk in elkaar te zetten do-it-yourself (DIY) kit(je) ontwikkeld waarmee de slimme energiemeter thuis kan worden uitgelezen. Het kitje bestaat uit een printplaat, een minicomputer en wat losse elektronica componenten. Het in elkaar solderen, configureren en thuis aansluiten op de slimme meter is een eenvoudige klus.
