@@ -9,7 +9,7 @@
 
 Bij het lectoraat Smart Energy, onderdeel van het Centre of Expertise Materialen en Energietransitie (MNEXT) van Avans Hogeschool te Breda, is een goedkoop en eenvoudig in elkaar te zetten do-it-yourself (DIY) kit(je) ontwikkeld, waarmee de slimme energiemeter thuis kan worden uitgelezen. Het kitje bestaat uit een printplaat, een minicomputer en wat losse elektronicacomponenten. Het in elkaar solderen, configureren en thuis aansluiten op de slimme energiemeter is een eenvoudige klus.
 
-Dit inititief is ontstaan binnen de onderzoekslijn Meten & Weten. Het is belangrijk om meer inzicht te krijen in het energieverbruik van het eigen huishouden. Door dit kitje kunnen consumenten en bedrijven inzicht krijgen in hun eigen energieverbruik.
+Dit inititief is ontstaan binnen de onderzoekslijn Meten & Weten. Het is belangrijk om meer inzicht te krijgen in het energieverbruik van het eigen huishouden. Door dit kitje kunnen consumenten en bedrijven inzicht krijgen in hun eigen energieverbruik.
 
 Het doel van dit project is informatie te verzamelen van  veel aangesloten slimme meters ter ondersteuning van onderzoek en onderwijs. Alle verzamelde informatie is  moeilijk herleidbaar tot personen en/of locaties. De verzamelde informatie is openbaar om de energietransitie te ondersteunen.
 
