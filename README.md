@@ -27,4 +27,4 @@ Heb je jouw DIY Smartmeter kitje al bemachtigd? Kijk dan op de [wiki](https://gi
 Niet alleen wij hebben goede ideeën. Jij kan ook meedoen. Heb je een leuk idee dan kan je dat via de issues dat kenbaar maken. Aan zowel de hardware en software kan je werken. Voor meer informatie zie [wiki](https://github.com/AvansETI/SmartMeter_DIY/wiki/8.-Contribute-to-the-software).
 
 ## Licentie
-Alle documenten, hardware, software en documentatie is beschikbaar onder der [MIT license](LICENSE.txt) licentie.
+Alle documenten, hardware, software en documentatie zijn beschikbaar onder de [MIT-licentie](LICENSE.txt).
