@@ -1,0 +1,2 @@
+# Documentatie
+De documentatie van de DIY Smartmeter kan je vinden op de [wiki](https://github.com/AvansETI/SmartMeter_DIY/wiki). Deze directory bevat alle bestanden en plaatjes die nodig zijn voor de wiki of andere markdown bestanden.
