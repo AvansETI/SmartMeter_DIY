@@ -16,7 +16,7 @@ Het doel van dit project is informatie te verzamelen van  veel aangesloten slimm
 Doe jij ook mee?
 
 ## Quick start
-Heb je jouw DIY Smartmeter kitje al bemachtigd? Kijk dan op de [wiki](https://github.com/AvansETI/SmartMeter_DIY/wiki). Hier kan je de bouwhandleiding vinden voor het solderen van de printplaat én het uploaden van de firmware. Zie hieronder wat belangrijke links die je kan onderzoeken.
+Heb je jouw DIY Smartmeter kitje al bemachtigd? Kijk dan op de [wiki](https://github.com/AvansETI/SmartMeter_DIY/wiki). Hier kan je de bouwhandleiding vinden voor het solderen van de printplaat én het uploaden van de firmware. Neem contact op met het lectoraat om in bezit te komen van dit gave kitje. Zie hieronder wat belangrijke links die je kan gebruiken.
 
 * Wiki: [https://github.com/AvansETI/SmartMeter_DIY/wiki](https://github.com/AvansETI/SmartMeter_DIY/wiki)
 * Source: [https://github.com/AvansETI/SmartMeter_DIY](https://github.com/AvansETI/SmartMeter_DIY)
