@@ -56,8 +56,6 @@
 #include <Ticker.h>
 
 #elif defined(ESP32)
-#include <driver/uart.h>
-#include <driver/gpio.h>
 #include <WiFi.h>
 #include <WebServer.h>
 #include <ESPmDNS.h>
@@ -309,6 +307,37 @@ Version: MS, Initial code
 #endif
 }
 
+#if defined(ESP32)
+/******************************************************************/
+void getResetReason(char* s) {
+/* 
+short: Get the reset reason of the chip.        
+inputs: char pointer       
+outputs: char pointer filled with reason
+notes: https://docs.espressif.com/projects/arduino-esp32/en/latest/api/reset_reason.html
+Version: MS, Initial code
+*******************************************************************/
+  switch ( esp_reset_reason() ) {
+    case 1:  sprintf(s, "POWERON_RESET"); break;          /**<1,  Vbat power on reset*/
+    case 3:  sprintf(s, "SW_RESET"); break;               /**<3,  Software reset digital core*/
+    case 4:  sprintf(s, "OWDT_RESET"); break;             /**<4,  Legacy watch dog reset digital core*/
+    case 5:  sprintf(s, "DEEPSLEEP_RESET"); break;        /**<5,  Deep Sleep reset digital core*/
+    case 6:  sprintf(s, "SDIO_RESET"); break;             /**<6,  Reset by SLC module, reset digital core*/
+    case 7:  sprintf(s, "TG0WDT_SYS_RESET"); break;       /**<7,  Timer Group0 Watch dog reset digital core*/
+    case 8:  sprintf(s, "TG1WDT_SYS_RESET"); break;       /**<8,  Timer Group1 Watch dog reset digital core*/
+    case 9:  sprintf(s, "RTCWDT_SYS_RESET"); break;       /**<9,  RTC Watch dog Reset digital core*/
+    case 10: sprintf(s, "INTRUSION_RESET"); break;        /**<10, Instrusion tested to reset CPU*/
+    case 11: sprintf(s, "TGWDT_CPU_RESET"); break;        /**<11, Time Group reset CPU*/
+    case 12: sprintf(s, "SW_CPU_RESET"); break;           /**<12, Software reset CPU*/
+    case 13: sprintf(s, "RTCWDT_CPU_RESET"); break;       /**<13, RTC Watch dog Reset CPU*/
+    case 14: sprintf(s, "EXT_CPU_RESET"); break;          /**<14, for APP CPU, reset by PRO CPU*/
+    case 15: sprintf(s, "RTCWDT_BROWN_OUT_RESET"); break; /**<15, Reset when the vdd voltage is not stable*/
+    case 16: sprintf(s, "RTCWDT_RTC_RESET"); break;       /**<16, RTC Watch dog reset digital core and rtc module*/
+    default: sprintf(s, "NO_MEAN");
+  }
+}
+#endif
+
 /******************************************************************/
 void setup() 
 /* 
@@ -441,6 +470,9 @@ Version :      DMK, Initial code
   Serial.printf("\tLast reset      : %s\n", ESP.getResetReason().c_str() );
 
 #elif defined(ESP32)
+  char resetReason[20];
+  getResetReason(resetReason);
+  
   Serial.begin(115200);
   Serial.printf("\n");
   Serial.printf("************ DIY Smartmeter KIT********************\n");
@@ -448,7 +480,7 @@ Version :      DMK, Initial code
   Serial.printf("\tSDK Version     : %s\n", ESP.getSdkVersion() );
   Serial.printf("\tCore Version    : %s\n", ESP.getCoreVersion() );
   Serial.printf("\tCore Frequency  : %ld Mhz\n", ESP.getCpuFreqMHz());
-  Serial.printf("\tLast reset      : %d\n", esp_reset_reason() );
+  Serial.printf("\tLast reset      : %s\n", resetReason );
 #endif
 
   Serial.printf("MQTT settings\n");
@@ -672,8 +704,8 @@ notes:
 Version :   DMK, Initial code
 *******************************************************************/
 {
-  char tmp[30];
 #if defined(ESP8266)
+  char tmp[30];
   strcpy(topic_string,"EMON19V01");
   sprintf(tmp,"-%06X",ESP.getChipId());
   strcat(topic_string,tmp);
@@ -681,7 +713,7 @@ Version :   DMK, Initial code
   strcat(topic_string,tmp);
 
 #elif defined(ESP32)
-  snprintf(tmp, 23, "SMARTMETER-%11llX", ESP.getEfuseMac());
+  sprintf(topic_string, "DIY-SMARTMETER-V2-%11llX", ESP.getEfuseMac());
 #endif
 }
 
@@ -695,8 +727,8 @@ notes:
 Version :   DMK, Initial code
 *******************************************************************/
 {
-   char tmp[30];
 #if defined(ESP8266)
+   char tmp[30];
    strcpy(signature,"2019-ETI-EMON");
    strcat(signature,"-V01");
    sprintf(tmp,"-%06X",ESP.getChipId());
@@ -705,7 +737,7 @@ Version :   DMK, Initial code
    strcat(signature,tmp);
 
 #elif defined(ESP32)
-  sprintf(signature, "2025-SMARTMETER-%11llX", ESP.getEfuseMac());
+  sprintf(signature, "DIY-SMARTMETER-V2-%11llX", ESP.getEfuseMac());
 #endif
 }
 
