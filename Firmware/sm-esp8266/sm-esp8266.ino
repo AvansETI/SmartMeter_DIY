@@ -39,7 +39,7 @@
         Migrated ArduinoJSON 6 to 7: https://arduinojson.org/v7/how-to/upgrade-from-v6/
         Added extra information to serial about the mDNS service and updated libraries.
   V1.7: Improved TCP data server and added the configuration for more than one client to connect.
-  V2.0: Adapted the source code to be compiled for the Wemos S2 mini as well that is based on ESP32S2.
+  V2.0: Adapted the source code to be compiled for the Wemos S2 mini (Lolin S2 mini) as well that is based on ESP32S2.
 
   Installation Arduino IDE:
   - How to get the Wemos installed in the Ardiuno IDE: https://siytek.com/wemos-d1-mini-arduino-wifi/
@@ -63,6 +63,7 @@
 #include <ESPmDNS.h>
 #endif
 
+// All includes that are used for both ESP8266 and ESP32
 #include <WiFiClient.h>
 #include <WiFiManager.h>
 #include <Ticker.h>
@@ -70,13 +71,16 @@
 #include <LittleFS.h>
 #include <PubSubClient.h>
 
-// Homeserver credentials
-#include "MqttSendlab.h"
+#include "config.h" // Configuration parameters
 
 #define DEBUG
 
 #ifdef DEBUG
- #define DEBUG_PRINTF(format, ...) (Serial1.printf(format, __VA_ARGS__))
+ #ifdef ESP8266
+  #define DEBUG_PRINTF(format, ...) (Serial1.printf(format, __VA_ARGS__))
+ #else // ESP32
+  #define DEBUG_PRINTF(format, ...) (Serial.printf(format, __VA_ARGS__))
+ #endif
 #else
  #define DEBUG_PRINTF
 #endif
@@ -106,7 +110,7 @@
 // IO15           Onboard led
 // IO18           Onboard pull-up
 // 
-// Pin mapping
+// Pin mapping (only outside pins listed)
 // WEMOS D1 mini	WEMOS S2 mini
 // RST        		EN
 // A0		          3
@@ -125,7 +129,7 @@
 // GND		        GND
 // 5V		          VBUS
 //
-#define RST_PIN         34 // Wemos GPIO34
+#define RST_PIN         33 // Wemos GPIO33
 #define RGB_R_PIN       9  // Wemos GPIO9
 #define RGB_G_PIN       36 // Wemos GPIO36
 #define RGB_B_PIN       7  // Wemos GPIO7
@@ -150,14 +154,6 @@ typedef enum {
 // Application configs struct. 
 bool shouldSaveConfig;
 
-#define MQTT_USERNAME_LENGTH       32
-#define MQTT_PASSWORD_LENGTH       32
-#define MQTT_ID_TOKEN_LENGTH       64
-#define MQTT_TOPIC_STRING_LENGTH   64
-#define MQTT_REMOTE_HOST_LENGTH   128
-#define MQTT_REMOTE_PORT_LENGTH    10
-#define P1_BAUDRATE_LENGTH         10
-
 typedef struct {
    char     mqtt_username[MQTT_USERNAME_LENGTH];
    char     mqtt_password[MQTT_PASSWORD_LENGTH];
@@ -177,10 +173,7 @@ WiFiClient mqttWifiClient;
 PubSubClient mqttClient("", 0, mqttWifiClient);
 uint32_t mqttTimer = 0; // Time used to reconnect to the mqtt server, when disconnected (#26)
 
-#define P1_TELEGRAM_SIZE   2048
-
 // Datagram P1 buffer 
-#define P1_MAX_DATAGRAM_SIZE 2048
 char p1_buf[P1_MAX_DATAGRAM_SIZE]; // Complete P1 telegram
 char *p1;
 
@@ -500,7 +493,6 @@ Version :      DMK, Initial code
 
   #ifdef DEBUG
     Serial1.begin(115200, SERIAL_8N1);
-    DEBUG_PRINTF("\n\r%s\n\r", "Debug mode ON ..." );
   #endif
  
   // Allow bootloader to connect: do not remove!
@@ -521,6 +513,10 @@ Version :      DMK, Initial code
   }
 #endif
   
+#ifdef DEBUG
+  DEBUG_PRINTF("\n\r%s\n\r", "Debug mode ON ..." );
+#endif
+
   // Initialise FSM
   initFSM(STATE_START, EV_IDLE);
 }
@@ -535,7 +531,6 @@ notes:         MS, Not full implementation of FSM; a lot of logic still in loop(
 Version :      DMK, Initial code
 *******************************************************************/
 {
-
   // Check for IP connection 
   if( WiFi.status() == WL_CONNECTED) {
 
@@ -710,7 +705,7 @@ Version :   DMK, Initial code
    strcat(signature,tmp);
 
 #elif defined(ESP32)
-  sprintf(tmp, "2025-SMARTMETER-%11llX", ESP.getEfuseMac());
+  sprintf(signature, "2025-SMARTMETER-%11llX", ESP.getEfuseMac());
 #endif
 }
 
