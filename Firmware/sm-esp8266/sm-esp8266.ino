@@ -867,7 +867,7 @@ Version :      DMK, Initial code
          char ch = Serial.read();
 
 #elif defined(ESP32)
-    if( Serial1.available() ) { 
+    if( Serial1.available() ) {
       while( Serial1.available() ) {
          char ch = Serial1.read();
 #endif
