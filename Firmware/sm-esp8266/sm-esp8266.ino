@@ -134,9 +134,6 @@
 #define SM_RXD          11 // Wemos GPIO11
 #endif
 
-// Minimun delay between mqtt publish events. Prevents mqtt spam e.g. DSMR 5.0 updates every second!
-#define MQTT_TOPIC_UPDATE_RATE_MS  20000
-
 // Local variables
 uint32_t cur=0, prev=0;
 WiFiManager wifiManager;
@@ -153,13 +150,17 @@ typedef enum {
 bool shouldSaveConfig;
 
 typedef struct {
-   char     mqtt_username[MQTT_USERNAME_LENGTH];
-   char     mqtt_password[MQTT_PASSWORD_LENGTH];
-   char     mqtt_id[MQTT_ID_TOKEN_LENGTH];
-   char     mqtt_topic[MQTT_TOPIC_STRING_LENGTH];
-   char     mqtt_remote_host[MQTT_REMOTE_HOST_LENGTH];
-   char     mqtt_remote_port[MQTT_REMOTE_PORT_LENGTH];
-   char     p1_baudrate[P1_BAUDRATE_LENGTH];
+  char     mqtt_username[MQTT_USERNAME_LENGTH];
+  char     mqtt_password[MQTT_PASSWORD_LENGTH];
+  char     mqtt_id[MQTT_ID_TOKEN_LENGTH];
+  char     mqtt_topic[MQTT_TOPIC_STRING_LENGTH];
+  char     mqtt_remote_host[MQTT_REMOTE_HOST_LENGTH];
+  char     mqtt_remote_port[MQTT_REMOTE_PORT_LENGTH];
+  char     p1_baudrate[P1_BAUDRATE_LENGTH];
+  char     mqtt_anonimize_p1[MQTT_ANONIMIZE_P1_LENGTH];
+  bool     mqtt_anonimize_p1_bool;
+  char     tcp_anonimize_p1[TCP_ANONIMIZE_P1_LENGTH];
+  bool     tcp_anonimize_p1_bool;
 } APP_CONFIG_STRUCT;
 
 APP_CONFIG_STRUCT app_config;
@@ -332,7 +333,6 @@ Version: MS, Initial code
     case 13: sprintf(s, "RTCWDT_CPU_RESET"); break;       /**<13, RTC Watch dog Reset CPU*/
     case 14: sprintf(s, "EXT_CPU_RESET"); break;          /**<14, for APP CPU, reset by PRO CPU*/
     case 15: sprintf(s, "RTCWDT_BROWN_OUT_RESET"); break; /**<15, Reset when the vdd voltage is not stable*/
-    case 16: sprintf(s, "RTCWDT_RTC_RESET"); break;       /**<16, RTC Watch dog reset digital core and rtc module*/
     default: sprintf(s, "NO_MEAN");
   }
 }
@@ -759,8 +759,12 @@ Version :      DMK, Initial code
 *******************************************************************/
 {
   bool retval = false;
-  
+
+#if defined(ESP8266)
+  if( LittleFS.begin() ) {
+#elif defined(ESP32)
   if( LittleFS.begin(true) ) { // When it fails it formats the LittleFS
+#endif
     if( LittleFS.exists("/config.json") ) {
        File configFile = LittleFS.open("/config.json","r");
        if( configFile ) {
@@ -1339,4 +1343,35 @@ void addWebDataP1(char* p1) {
     }
   }
   webDataPointer++;
+}
+
+/******************************************************************/
+bool anonymizeP1Data(char* p1) {
+/* 
+short:      Anonymize P1 data by removing the equipment IDs found in the message         
+inputs:     Pointer to the p1 message   
+outputs:    Returns true when parsen successfull, otherwise false.
+notes:      0-0:96.1.1(**EQUIPMENT-ID**) => :96.1. is always equipment identifiers         
+Version :   MS, Initial code
+*******************************************************************/
+  char* indexEqId = strstr(p1, ":96.1.");
+  while ( indexEqId != NULL ) { // Found an equipment ID tag
+
+    char* indexStartId = strchr(indexEqId, '(');
+    char* indexEndId = strchr(indexEqId, ')');
+
+    if ( indexStartId != NULL && indexEndId != NULL && indexEndId > indexStartId ) { // Found the equipment ID
+      for ( uint16_t i=1; i < indexEndId - indexStartId; i++ ) { // Replace equipment ID with zero's
+        indexStartId[i] = '0';
+      }
+
+    } else {
+      DEBUG_PRINTF(">%s: Parsing equipment ID error\n\r", __FUNCTION__);
+      return false;
+    }
+
+    indexEqId = strstr(indexEndId, ":96.1."); // Find the next equipment identifier
+  }
+
+  return true;
 }
