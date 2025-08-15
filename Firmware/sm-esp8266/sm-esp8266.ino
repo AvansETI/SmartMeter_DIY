@@ -760,7 +760,7 @@ Version :      DMK, Initial code
 {
   bool retval = false;
   
-  if( LittleFS.begin() ) {
+  if( LittleFS.begin(true) ) { // When it fails it formats the LittleFS
     if( LittleFS.exists("/config.json") ) {
        File configFile = LittleFS.open("/config.json","r");
        if( configFile ) {
