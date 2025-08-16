@@ -176,6 +176,8 @@ uint32_t mqttTimer = 0; // Time used to reconnect to the mqtt server, when disco
 char p1_buf[P1_MAX_DATAGRAM_SIZE]; // Complete P1 telegram
 char *p1;
 
+bool anonymizeP1Data(char* p1); // Forward declaration
+
 // TCP/IP server to implement the P1 datagram provider variables
 WiFiServer tcpServer(TCP_DATA_SERVER_PORT); // TCP/IP server
 WiFiClient tcpServerClient[TCP_DATA_SERVER_MAX_CLIENTS]; // TCP/IP connected clients
@@ -626,6 +628,10 @@ Version :      DMK, Initial code
 
   // Capture P1 messages. If P1 msg is available raise MQTT event
   if( true == capture_p1() ) {
+    if ( app_config.mqtt_anonimize_p1_bool ) { // If enabled, anonimize the P1 data before sending it over the TCP server
+      anonymizeP1Data(p1_buf);
+    }
+
     if ( millis() > webserverTimer + WEBSERVERDATASAMPLERATE ) {
       addWebDataP1(p1_buf);
       webserverTimer = millis();
@@ -1163,6 +1169,10 @@ void mqtt_heartbeat(void) {
   uint32_t mqtt_throttle_cur = millis();
   uint32_t mqtt_throttle_elapsed = mqtt_throttle_cur - mqtt_throttle_prev;
   if( mqtt_throttle_elapsed >= MQTT_TOPIC_UPDATE_RATE_MS ) {
+
+    if ( app_config.mqtt_anonimize_p1_bool ) { // If enabled, anonimize the P1 data before sending it to the MQTT server
+      anonymizeP1Data(p1_buf);
+    }
 
     //
     mqtt_throttle_prev = mqtt_throttle_cur; 
