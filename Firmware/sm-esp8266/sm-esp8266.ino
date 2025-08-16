@@ -118,18 +118,18 @@
 // D7		          11
 // D8		          12
 // 3V3		        3V3
-// TX		          40
-// RX		          38
-// D1		          36
-// D2		          34
-// D3		          21
-// D4		          17
+// TX		          39
+// RX		          37
+// D1		          35
+// D2		          33
+// D3		          18
+// D4		          16
 // GND		        GND
 // 5V		          VBUS
 //
 #define RST_PIN         33 // Wemos GPIO33
 #define RGB_R_PIN       9  // Wemos GPIO9
-#define RGB_G_PIN       36 // Wemos GPIO36
+#define RGB_G_PIN       35 // Wemos GPIO35
 #define RGB_B_PIN       7  // Wemos GPIO7
 #define SM_RXD          11 // Wemos GPIO11
 #endif
