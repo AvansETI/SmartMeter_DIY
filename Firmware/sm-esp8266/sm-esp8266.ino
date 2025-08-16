@@ -580,8 +580,8 @@ Version :      DMK, Initial code
 {
   // Check for IP connection 
   if( WiFi.status() == WL_CONNECTED) {
-
-    // Handle mqtt, if not connected it uses a timer to reconnect every MQTT_RETRY_TIMEOUT ms. (#26)
+    // Handle mqtt, if not MQTT server is available it uses a timer to reconnect every MQTT_RETRY_TIMEOUT ms. 
+    // Otherwise, it freezes all other services that are running on the CPU. (#26)
     if( !mqttClient.connected() && ( mqttTimer == 0 || millis() > mqttTimer + MQTT_RETRY_TIMEOUT ) ) {
       smartLedFlash(RED); // Added to see when MQTT is not connected (#26: causing a delay of 150ms)
       mqtt_connect();
