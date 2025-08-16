@@ -396,8 +396,8 @@ Version :      DMK, Initial code
   shouldSaveConfig = false;
 
   // Adds some parameters to the default webpage
-  WiFiManagerParameter wmp_text("<br/>MQTT setting:</br>");
-  wifiManager.addParameter(&wmp_text);
+  WiFiManagerParameter wmp_mqtt_text("<b>MQTT settings:</b><br/><br/>");
+  wifiManager.addParameter(&wmp_mqtt_text);
   WiFiManagerParameter custom_mqtt_username("mqtt_username", "Username", app_config.mqtt_username, MQTT_USERNAME_LENGTH);
   WiFiManagerParameter custom_mqtt_password("mqtt_password", "Password", app_config.mqtt_password, MQTT_PASSWORD_LENGTH);
   WiFiManagerParameter custom_mqtt_remote_host("mqtt_remote_host", "Host", app_config.mqtt_remote_host, MQTT_REMOTE_HOST_LENGTH);
@@ -409,19 +409,27 @@ Version :      DMK, Initial code
   wifiManager.addParameter(&custom_mqtt_remote_host);
   wifiManager.addParameter(&custom_mqtt_remote_port);
   wifiManager.addParameter(&custom_p1_baudrate);
+
+  // Adds security parameters to the default webpage
+  WiFiManagerParameter wmp_sec_text("<br/><br/><b>Security settings:</b><br/>");
+  wifiManager.addParameter(&wmp_sec_text);
+  WiFiManagerParameter custom_mqtt_anonymize_p1("mqtt_anonymize_p1", "Anonymize your MQTT P1 data", "YES", MQTT_ANONIMIZE_P1_LENGTH, "checked type=\"checkbox\"", WFM_LABEL_AFTER);
+  wifiManager.addParameter(&custom_mqtt_anonymize_p1);
+  WiFiManagerParameter custom_tcp_anonymize_p1("tcp_anonymize_p1", "Anonymize your local TCP P1 data", "YES", TCP_ANONIMIZE_P1_LENGTH, "type=\"checkbox\"", WFM_LABEL_AFTER);
+  wifiManager.addParameter(&custom_tcp_anonymize_p1);
   
   // Add the unit ID to the webpage
-  char fd_str[128]="<p>Your EMON ID: <b>";
+  char fd_str[200]="<br/><br/><b>Your DIY SMARTMETER ID:<br/><br/>";
   strcat(fd_str, app_config.mqtt_topic);
-  strcat(fd_str, "</b> Make a SCREENSHOT - you will need this info later!</p>");
-  WiFiManagerParameter mqqt_topic_text(fd_str);
-  wifiManager.addParameter(&mqqt_topic_text);
+  strcat(fd_str, "</b><br/><br/>Make a SCREENSHOT - you will need this info later!<br/>");
+  WiFiManagerParameter mqtt_topic_text(fd_str);
+  wifiManager.addParameter(&mqtt_topic_text);
 
   // Blue led on. Will go GREEN if WiFi network is available or 
   // stays BLUE when WiFi credentials are needed.
   smartLedColor(BLUE, ON);
   
-  if( !wifiManager.autoConnect("ETI EMON config")) {
+  if( !wifiManager.autoConnect("DIY SMARTMETER config")) {
     delay(1000);
     resetHardware();
   }  
@@ -435,6 +443,10 @@ Version :      DMK, Initial code
     strcpy(app_config.mqtt_remote_host, custom_mqtt_remote_host.getValue());
     strcpy(app_config.mqtt_remote_port, custom_mqtt_remote_port.getValue());
     strcpy(app_config.p1_baudrate, custom_p1_baudrate.getValue());
+    strcpy(app_config.mqtt_anonimize_p1, (strcmp(custom_mqtt_anonymize_p1.getValue(), "YES") == 0 ? "YES" : "NO"));
+    app_config.mqtt_anonimize_p1_bool = (strcmp(app_config.mqtt_anonimize_p1, "YES") == 0 ? true : false);
+    strcpy(app_config.tcp_anonimize_p1, (strcmp(custom_tcp_anonymize_p1.getValue(), "YES") == 0 ? "YES" : "NO"));
+    app_config.tcp_anonimize_p1_bool = (strcmp(app_config.tcp_anonimize_p1, "YES") == 0 ? true : false);
     writeAppConfig(&app_config);
   }
 
@@ -462,12 +474,12 @@ Version :      DMK, Initial code
   Serial.begin(115200, SERIAL_8N1);
 
   Serial.printf("\n");
-  Serial.printf("************ DIY Smartmeter KIT********************\n");
+  Serial.printf("************ DIY Smartmeter ********************\n");
   Serial.printf("ESP8266 info\n");
-  Serial.printf("\tSDK Version     : %s\n", ESP.getSdkVersion() );
-  Serial.printf("\tCore Version    : %s\n", ESP.getCoreVersion().c_str() );
-  Serial.printf("\tCore Frequency  : %d Mhz\n", ESP.getCpuFreqMHz());
-  Serial.printf("\tLast reset      : %s\n", ESP.getResetReason().c_str() );
+  Serial.printf("\tSDK Version       : %s\n", ESP.getSdkVersion() );
+  Serial.printf("\tCore Version      : %s\n", ESP.getCoreVersion().c_str() );
+  Serial.printf("\tCore Frequency    : %d Mhz\n", ESP.getCpuFreqMHz());
+  Serial.printf("\tLast reset        : %s\n", ESP.getResetReason().c_str() );
 
 #elif defined(ESP32)
   char resetReason[20];
@@ -475,34 +487,35 @@ Version :      DMK, Initial code
   
   Serial.begin(115200);
   Serial.printf("\n");
-  Serial.printf("************ DIY Smartmeter KIT********************\n");
+  Serial.printf("************ DIY Smartmeter ********************\n");
   Serial.printf("ESP32S2 info\n");
-  Serial.printf("\tSDK Version     : %s\n", ESP.getSdkVersion() );
-  Serial.printf("\tCore Version    : %s\n", ESP.getCoreVersion() );
-  Serial.printf("\tCore Frequency  : %ld Mhz\n", ESP.getCpuFreqMHz());
-  Serial.printf("\tLast reset      : %s\n", resetReason );
+  Serial.printf("\tSDK Version        : %s\n", ESP.getSdkVersion() );
+  Serial.printf("\tCore Version       : %s\n", ESP.getCoreVersion() );
+  Serial.printf("\tCore Frequency     : %ld Mhz\n", ESP.getCpuFreqMHz());
+  Serial.printf("\tLast reset         : %s\n", resetReason );
 #endif
 
   Serial.printf("MQTT settings\n");
-  Serial.printf("\tmqtt_username   : %s\n", app_config.mqtt_username);
-  Serial.printf("\tmqtt_password   : %s\n", app_config.mqtt_password);
-  Serial.printf("\tmqtt_id         : %s\n", app_config.mqtt_id);
-  Serial.printf("\tmqtt_topic      : %s\n", mqtt_topic);
-  Serial.printf("\tmqtt_remote_host: %s\n", app_config.mqtt_remote_host);
-  Serial.printf("\tmqtt_remote_port: %s\n", app_config.mqtt_remote_port);
-  Serial.printf("\tIP address      : %s\n", WiFi.localIP().toString().c_str());
+  Serial.printf("\tmqtt_username     : %s\n", app_config.mqtt_username);
+  Serial.printf("\tmqtt_password     : %s\n", app_config.mqtt_password);
+  Serial.printf("\tmqtt_id           : %s\n", app_config.mqtt_id);
+  Serial.printf("\tmqtt_topic        : %s\n", mqtt_topic);
+  Serial.printf("\tmqtt_remote_host  : %s\n", app_config.mqtt_remote_host);
+  Serial.printf("\tmqtt_remote_port  : %s\n", app_config.mqtt_remote_port);
+  Serial.printf("\tIP address        : %s\n", WiFi.localIP().toString().c_str());
+  Serial.printf("\tmqtt_anonimize_p1 : %s\n", app_config.mqtt_anonimize_p1);
 
   Serial.printf("DSMR settings\n");
-  Serial.printf("\tP1 Baudrate     : %s baud\n", app_config.p1_baudrate);
+  Serial.printf("\tP1 Baudrate       : %s baud\n", app_config.p1_baudrate);
 
   // Setup mDNS Service
   if ( MDNS.begin("diy_smartmeter") ) { 
     MDNS.addService("http", "tcp", 80);     // Webserver
     MDNS.addService("p1data", "tcp", 3141); // TCP/IP P1 data provider server
     Serial.printf("mDNS\n");
-    Serial.printf("\tmDNS URL        : %s\n", "diy_smartmeter.local");
-    Serial.printf("\tWeb server      : %s\n", "diy_smartmeter.local:80");
-    Serial.printf("\tData server     : %s\n", "diy_smartmeter.local:3141");
+    Serial.printf("\tmDNS URL          : %s\n", "diy_smartmeter.local");
+    Serial.printf("\tWeb server        : %s (anonimize P1 data: %s)\n", "diy_smartmeter.local:80", app_config.tcp_anonimize_p1);
+    Serial.printf("\tData server       : %s\n", "diy_smartmeter.local:3141");
   } else {
     Serial.printf("mDNS:   Could not start the mDNS service!\n");
   }
@@ -706,7 +719,7 @@ Version :   DMK, Initial code
 {
 #if defined(ESP8266)
   char tmp[30];
-  strcpy(topic_string,"EMON19V01");
+  strcpy(topic_string,"DIY-SMARTMETER-V2-");
   sprintf(tmp,"-%06X",ESP.getChipId());
   strcat(topic_string,tmp);
   sprintf(tmp,"-%06X",ESP.getFlashChipId()); 
@@ -729,8 +742,7 @@ Version :   DMK, Initial code
 {
 #if defined(ESP8266)
    char tmp[30];
-   strcpy(signature,"2019-ETI-EMON");
-   strcat(signature,"-V01");
+   strcpy(signature,"DIY-SMARTMETER-V2-");
    sprintf(tmp,"-%06X",ESP.getChipId());
    strcat(signature,tmp);
    sprintf(tmp,"-%06X",ESP.getFlashChipId()); 
@@ -763,7 +775,7 @@ Version :      DMK, Initial code
 #if defined(ESP8266)
   if( LittleFS.begin() ) {
 #elif defined(ESP32)
-  if( LittleFS.begin(true) ) { // When it fails it formats the LittleFS
+  if( LittleFS.begin(true) ) { // ESP32 has a different LittleFS implementation and requires true option, so it formats the FS when it fails
 #endif
     if( LittleFS.exists("/config.json") ) {
        File configFile = LittleFS.open("/config.json","r");
@@ -777,7 +789,6 @@ Version :      DMK, Initial code
           std::unique_ptr<char[]> buf(new char[size]);
           configFile.readBytes(buf.get(), size);
         
-          //StaticJsonDocument<512> doc; // migration
           JsonDocument doc;
           DeserializationError error = deserializeJson(doc, buf.get());
           
@@ -787,11 +798,19 @@ Version :      DMK, Initial code
              strcpy(app_config->mqtt_remote_host, doc["MQTT_HOST"]);
              strcpy(app_config->mqtt_remote_port, doc["MQTT_PORT"]);
              strcpy(app_config->p1_baudrate, doc["P1_BAUDRATE"]);
+             strcpy(app_config->mqtt_anonimize_p1, doc["mqtt_anonimize_p1"]);
+             app_config->mqtt_anonimize_p1_bool = (strcmp(app_config->mqtt_anonimize_p1, "YES") == 0 ? true : false);
+             strcpy(app_config->tcp_anonimize_p1, doc["tcp_anonimize_p1"]);
+             app_config->tcp_anonimize_p1_bool = (strcmp(app_config->tcp_anonimize_p1, "YES") == 0 ? true : false);
              retval = true;
           }
        }
+    } else {
+      DEBUG_PRINTF(">%s: config.json does not exists\n", __FUNCTION__);
     }
-  }  
+  } else {
+    DEBUG_PRINTF(">%s: ERROR: could not initialize LittleFS\n", __FUNCTION__);
+  }
   return retval;
 }
 
@@ -816,6 +835,8 @@ Version :      DMK, Initial code
   doc["MQTT_HOST"] = app_config->mqtt_remote_host;
   doc["MQTT_PORT"] = app_config->mqtt_remote_port;
   doc["P1_BAUDRATE"]= app_config->p1_baudrate;
+  doc["mqtt_anonimize_p1"] = app_config->mqtt_anonimize_p1;
+  doc["tcp_anonimize_p1"] = app_config->tcp_anonimize_p1;
   
   File configFile = LittleFS.open("/config.json","w+");
   if( configFile ) {

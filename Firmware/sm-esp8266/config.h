@@ -43,12 +43,12 @@
 #define MQTT_REMOTE_HOST_LENGTH    128
 #define MQTT_REMOTE_PORT_LENGTH    10
 #define P1_BAUDRATE_LENGTH         10
-#define MQTT_ANONIMIZE_P1_LENGTH   5
+#define MQTT_ANONIMIZE_P1_LENGTH   32
 
 // Local services configuration
 #define TCP_DATA_SERVER_PORT        3141
 #define TCP_DATA_SERVER_MAX_CLIENTS 2       // Too many clients will have effect on performance (1-5)
 #define TCP_ANONIMIZE_P1            "NO"    // YES/NO, default NO while this data stays in the local network
-#define TCP_ANONIMIZE_P1_LENGTH     5
+#define TCP_ANONIMIZE_P1_LENGTH     32
 #define HTTP_SERVER_DATA_LENGTH     12*3    // Data points that will be stored
 #define HTTP_SERVER_SAMPLE_RATE     1000*60 // Sample rate to collect the data points in ms
