@@ -356,6 +356,13 @@ Version :      DMK, Initial code
   pinMode(RGB_G_PIN, OUTPUT);     // Green RGB led
   pinMode(RGB_B_PIN, OUTPUT);     // Blue RGB led
   
+  // Already initialize the serial, so debugging is possible from this step already
+  #if defined(ESP8266)
+    Serial.begin(115200, SERIAL_8N1);
+  #elif defined(ESP32)
+    Serial.begin(115200);
+  #endif
+
   // Init with red led
   smartLedInit();
 
@@ -473,8 +480,6 @@ Version :      DMK, Initial code
 
   // Always print config to terminal before swapping serial port
 #if defined(ESP8266)
-  Serial.begin(115200, SERIAL_8N1);
-
   Serial.printf("\n");
   Serial.printf("************ DIY Smartmeter ********************\n");
   Serial.printf("ESP8266 info\n");
@@ -487,7 +492,6 @@ Version :      DMK, Initial code
   char resetReason[20];
   getResetReason(resetReason);
   
-  Serial.begin(115200);
   Serial.printf("\n");
   Serial.printf("************ DIY Smartmeter ********************\n");
   Serial.printf("ESP32S2 info\n");
@@ -594,7 +598,7 @@ Version :      DMK, Initial code
     }
 
 #if defined(ESP8266)
-    // Handle mDNS service
+    // Handle mDNS service, the ESP32S2 does this automatically.
     MDNS.update();
 #endif
 
