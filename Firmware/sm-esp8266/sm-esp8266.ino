@@ -39,7 +39,9 @@
         Migrated ArduinoJSON 6 to 7: https://arduinojson.org/v7/how-to/upgrade-from-v6/
         Added extra information to serial about the mDNS service and updated libraries.
   V1.7: Improved TCP data server and added the configuration for more than one client to connect.
-  V2.0: Adapted the source code to be compiled for the Wemos S2 mini (Lolin S2 mini) as well that is based on ESP32S2.
+  V2.0: Adapted the source code to be compiled for the Wemos S2 mini (Lolin S2 mini / ESP32S2) as well the current ESP32S2.
+        Added the option to anonimize (zero all equipment IDs) of the P1 data that is send to the MQTT server and TCP clients.
+        Removed EMON and ETI wordings and go for consistent DIY_SMARTMETER.
 
   Installation Arduino IDE:
   - How to get the Wemos installed in the Ardiuno IDE: https://siytek.com/wemos-d1-mini-arduino-wifi/
