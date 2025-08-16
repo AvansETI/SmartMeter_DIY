@@ -628,7 +628,7 @@ Version :      DMK, Initial code
 
   // Capture P1 messages. If P1 msg is available raise MQTT event
   if( true == capture_p1() ) {
-    if ( app_config.mqtt_anonimize_p1_bool ) { // If enabled, anonimize the P1 data before sending it over the TCP server
+    if ( app_config.tcp_anonimize_p1_bool ) { // If enabled, anonimize the P1 data before sending it over the TCP server
       anonymizeP1Data(p1_buf);
     }
 
