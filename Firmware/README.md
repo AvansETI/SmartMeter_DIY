@@ -53,3 +53,6 @@ This service can be used for example:
 
 ## MQTT client
 MQTT client is used to connect to the research MQTT server and share the Smart Meter P1 data that is received. This data is publically available and used for research and eduacation. 
+
+## Anonimize P1 data
+The P1 data contains personal identifiable information, namely the equipment identifiers. These identifiers are used by the energy companies to link the meter to a real person. While this data is not used for research we should remove this information. Therefore the firmware has the possibility to anonimize the P1 data to make all the equipment identifiers zero. This option can be switched off when configuring the device in the first step.
