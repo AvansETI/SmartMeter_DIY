@@ -71,7 +71,7 @@
 #include <LittleFS.h>
 #include <PubSubClient.h>
 
-#include "config.h" // Configuration parameters
+#include "include/config.h" // Configuration parameters
 
 #define DEBUG
 
