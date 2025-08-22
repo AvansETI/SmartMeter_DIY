@@ -4,7 +4,7 @@ You can find here the firmware for the SmartMeter project. It uses a Wemos D1 mi
 (https://www.wemos.cc/en/latest/d1/d1_mini_lite.html). Note that only the last version is
 available that is used by the hardware version 2.0 and 2.1.
 
-## ArduinoSketch / sm-esp8266
+## ArduinoSketch (ESP8266 and ESP32S2 compatible)
 
 This software is created using the Arduino IDE (https://www.arduino.cc/en/software). After
 installing the IDE you need to add the ESP8266 boards. You can find a tutorial here: 

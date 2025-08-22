@@ -19,6 +19,9 @@
   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, 
   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN 
   THE SOFTWARE.
+
+  This configuration file is part of the DIY SMARTMETER software and provide
+  a central configuration to build the software.
 */
 
 // Remote MQTT server configuration
@@ -46,9 +49,5 @@
 #define MQTT_ANONIMIZE_P1_LENGTH   32
 
 // Local services configuration
-#define TCP_DATA_SERVER_PORT        3141
-#define TCP_DATA_SERVER_MAX_CLIENTS 2       // Too many clients will have effect on performance (1-5)
 #define TCP_ANONIMIZE_P1            "NO"    // YES/NO, default NO while this data stays in the local network
 #define TCP_ANONIMIZE_P1_LENGTH     32
-#define HTTP_SERVER_DATA_LENGTH     12*3    // Data points that will be stored
-#define HTTP_SERVER_SAMPLE_RATE     1000*60 // Sample rate to collect the data points in ms

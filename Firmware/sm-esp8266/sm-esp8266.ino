@@ -42,6 +42,7 @@
   V2.0: Adapted the source code to be compiled for the Wemos S2 mini (Lolin S2 mini / ESP32S2) as well the current ESP32S2.
         Added the option to anonimize (zero all equipment IDs) of the P1 data that is send to the MQTT server and TCP clients.
         Removed EMON and ETI wordings and go for consistent DIY_SMARTMETER.
+        Implemented the dashboard, p1 data server and hardware functionality into seperate library files for readability.
 
   Installation Arduino IDE:
   - How to get the Wemos installed in the Ardiuno IDE: https://siytek.com/wemos-d1-mini-arduino-wifi/
@@ -51,6 +52,8 @@
  
   Happy Coding
   -------------------------------------------------------------------------*/
+#define VERSION "2.0"
+
 #if defined(ESP8266)
 #include <ESP8266WiFi.h>
 #include <ESP8266WebServer.h>
@@ -72,6 +75,9 @@
 #include <PubSubClient.h>
 
 #include "config.h" // Configuration parameters
+#include "include/hardware.hpp"
+#include "include/dashboard.hpp"
+#include "include/p1dataserver.hpp"
 
 #define DEBUG
 
@@ -85,68 +91,9 @@
  #define DEBUG_PRINTF
 #endif
 
-#if defined(ESP8266)
-//
-// WeMos  ESP8266 Use Warning
-// D0     GPIO16
-// D1     GPIO5   SCL
-// D2     GPIO4   SDA
-// D3     GPIO0   Must be PULLED HIGH during boot (Pulled up on WeMos board)
-// D4     GPIO2   Must be PULLED HIGH during boot (Pulled up on WeMos board)
-// D5     GPIO14  SCL
-// D6     GPIO12  MISO  
-// D7     GPIO13
-// D8     GPIO15  Boot mode, must be LOW during flash boot
-// A0             Analog
-
-#define RST_PIN         D2  // Wemos D2 (GPIO4)
-#define RGB_R_PIN       D6  // Wemos D6 (GPIO12)
-#define RGB_G_PIN       D1  // Wemos D1 (GPIO5)
-#define RGB_B_PIN       D5  // Wemos D5 (GPIO14)
-
-#elif defined(ESP32)
-//
-// WeMos  ESP32S2 Use Warning (pin compatible with Wemos D1 mini lite)
-// IO15           Onboard led
-// IO18           Onboard pull-up
-// 
-// Pin mapping (only outside pins listed)
-// WEMOS D1 mini	WEMOS S2 mini
-// RST        		EN
-// A0		          3
-// D0		          5
-// D5		          7
-// D6		          9
-// D7		          11
-// D8		          12
-// 3V3		        3V3
-// TX		          39
-// RX		          37
-// D1		          35
-// D2		          33
-// D3		          18
-// D4		          16
-// GND		        GND
-// 5V		          VBUS
-//
-#define RST_PIN         33 // Wemos GPIO33
-#define RGB_R_PIN       9  // Wemos GPIO9
-#define RGB_G_PIN       35 // Wemos GPIO35
-#define RGB_B_PIN       7  // Wemos GPIO7
-#define SM_RXD          11 // Wemos GPIO11
-#endif
-
 // Local variables
 uint32_t cur=0, prev=0;
 WiFiManager wifiManager;
-
-typedef enum {
-  RED = 0, GREEN, BLUE
-} RGB_COLOR_ENUM;
-
-typedef enum {
-  ON = 0, OFF
-} RGB_STATE_ENUM;
 
 // Application configs struct. 
 bool shouldSaveConfig;
@@ -178,37 +125,11 @@ uint32_t mqttTimer = 0; // Time used to reconnect to the mqtt server, when disco
 char p1_buf[P1_MAX_DATAGRAM_SIZE]; // Complete P1 telegram
 char *p1;
 
-bool anonymizeP1Data(char* p1); // Forward declaration
+// Dashboard
+Dashboard dashboard;
 
-// TCP/IP server to implement the P1 datagram provider variables
-WiFiServer tcpServer(TCP_DATA_SERVER_PORT); // TCP/IP server
-WiFiClient tcpServerClient[TCP_DATA_SERVER_MAX_CLIENTS]; // TCP/IP connected clients
-
-// HTTP Web server variables
-#define WEBSERVERDATALENGTH HTTP_SERVER_DATA_LENGTH // Data points that will be stored
-#define WEBSERVERDATASAMPLERATE HTTP_SERVER_SAMPLE_RATE // Sample rate to collect the data points in ms
-#if defined(ESP8266)
-ESP8266WebServer server(80); // WebServer
-#elif defined(ESP32)
-WebServer server(80);
-#endif
-bool webServerInitialized = false;
-uint16_t webDataPointer = 0; // Pointer to the insert point
-uint32_t webserverTimer = 0; // Time used to implement the sample rate
-void addWebDataP1(char* p1); // Add data point to the data store from P1 message
-void handleRoot(); // Handle root page callback
-void handleDataApi(); // Handle data page/api callback
-void handleNotFound(); // Handle not found page callback
-
-// Varibles to store the P1 data that is provided to the webpage
-char DSMRVersion[5] = "-";
-char DSMRTimestamp[14] = "-";
-float dataActualPowerConsumption[WEBSERVERDATALENGTH];  // Actual power consumption kW
-float dataActualPowerProduction[WEBSERVERDATALENGTH];  // Actual power production kW
-float dataEnergyConsumption1[WEBSERVERDATALENGTH]; // Energy consumption 1 kWh
-float dataEnergyConsumption2[WEBSERVERDATALENGTH]; // Energy consumption 2 kWh
-float dataEnergyProduction1[WEBSERVERDATALENGTH]; // Energy production 1 kWh
-float dataEnergyProduction2[WEBSERVERDATALENGTH]; // Energy production 1 kWh
+// P1 Data Server
+P1DataServer p1DataServer;
 
 /* Prototype FSM functions. */
 void start_pre(void);
@@ -296,53 +217,6 @@ Version :      DMK, Initial code
 }
 
 /******************************************************************/
-void resetHardware () 
-/* 
-short: Performs a hardware reset of the chip.        
-inputs:        
-outputs: 
-notes:         
-Version: MS, Initial code
-*******************************************************************/
-{
-#if defined(ESP8266)
-  ESP.reset();
-#elif defined(ESP32)
-  esp_restart();
-#endif
-}
-
-#if defined(ESP32)
-/******************************************************************/
-void getResetReason(char* s) {
-/* 
-short: Get the reset reason of the chip.        
-inputs: char pointer       
-outputs: char pointer filled with reason
-notes: https://docs.espressif.com/projects/arduino-esp32/en/latest/api/reset_reason.html
-Version: MS, Initial code
-*******************************************************************/
-  switch ( esp_reset_reason() ) {
-    case 1:  sprintf(s, "POWERON_RESET"); break;          /**<1,  Vbat power on reset*/
-    case 3:  sprintf(s, "SW_RESET"); break;               /**<3,  Software reset digital core*/
-    case 4:  sprintf(s, "OWDT_RESET"); break;             /**<4,  Legacy watch dog reset digital core*/
-    case 5:  sprintf(s, "DEEPSLEEP_RESET"); break;        /**<5,  Deep Sleep reset digital core*/
-    case 6:  sprintf(s, "SDIO_RESET"); break;             /**<6,  Reset by SLC module, reset digital core*/
-    case 7:  sprintf(s, "TG0WDT_SYS_RESET"); break;       /**<7,  Timer Group0 Watch dog reset digital core*/
-    case 8:  sprintf(s, "TG1WDT_SYS_RESET"); break;       /**<8,  Timer Group1 Watch dog reset digital core*/
-    case 9:  sprintf(s, "RTCWDT_SYS_RESET"); break;       /**<9,  RTC Watch dog Reset digital core*/
-    case 10: sprintf(s, "INTRUSION_RESET"); break;        /**<10, Instrusion tested to reset CPU*/
-    case 11: sprintf(s, "TGWDT_CPU_RESET"); break;        /**<11, Time Group reset CPU*/
-    case 12: sprintf(s, "SW_CPU_RESET"); break;           /**<12, Software reset CPU*/
-    case 13: sprintf(s, "RTCWDT_CPU_RESET"); break;       /**<13, RTC Watch dog Reset CPU*/
-    case 14: sprintf(s, "EXT_CPU_RESET"); break;          /**<14, for APP CPU, reset by PRO CPU*/
-    case 15: sprintf(s, "RTCWDT_BROWN_OUT_RESET"); break; /**<15, Reset when the vdd voltage is not stable*/
-    default: sprintf(s, "NO_MEAN");
-  }
-}
-#endif
-
-/******************************************************************/
 void setup() 
 /* 
 short:         initial setup(), runes only one time
@@ -351,12 +225,8 @@ outputs:
 notes:         
 Version :      DMK, Initial code
 *******************************************************************/
-{    
-  // Define I/O and attach ISR
-  pinMode(RST_PIN, INPUT_PULLUP); // Reset - Use internal pullup
-  pinMode(RGB_R_PIN, OUTPUT);     // Red RGB led
-  pinMode(RGB_G_PIN, OUTPUT);     // Green RGB led
-  pinMode(RGB_B_PIN, OUTPUT);     // Blue RGB led
+{  
+  hardwareSetup();  
   
   // Already initialize the serial, so debugging is possible from this step already
   #if defined(ESP8266)
@@ -364,9 +234,6 @@ Version :      DMK, Initial code
   #elif defined(ESP32)
     Serial.begin(115200);
   #endif
-
-  // Init with red led
-  smartLedInit();
 
   // Say Hello to user
   for(uint8_t idx = 0; idx < 2; idx++ ) {
@@ -461,24 +328,8 @@ Version :      DMK, Initial code
     writeAppConfig(&app_config);
   }
 
-  // Setup TCP/IP server
-  tcpServer.begin();
-  
-  // Web server initialization
-  server.on("/", handleRoot);               // Call the 'handleRoot' function when a client requests URI "/"
-  server.on("/data", handleDataApi);        // Call the 'handleDataApi' function when a client requests URI "/data"
-  server.onNotFound(handleNotFound);        // When a client requests an unknown URI (i.e. something other than "/"), call function "handleNotFound"
-  server.begin();                           // Actually start the server
-
-  // Initialize the data stores with zero
-  for ( uint16_t i=0; i < WEBSERVERDATALENGTH; i++ ) {
-    dataActualPowerConsumption[i] = 0; // Actual power consumpation kW
-    dataActualPowerProduction[i] = 0; // Actual power production kW
-    dataEnergyConsumption1[i] = 0; // Energy 1 consumption Kwh
-    dataEnergyConsumption2[i] = 0; // Energy 2 consumption kWh
-    dataEnergyProduction1[i] = 0; // Energy 1 production kWh
-    dataEnergyProduction2[i] = 0; // Energy 2 production kWh
-  }
+  dashboard.begin();
+  p1DataServer.begin();
 
   // Always print config to terminal before swapping serial port
 #if defined(ESP8266)
@@ -518,8 +369,8 @@ Version :      DMK, Initial code
 
   // Setup mDNS Service
   if ( MDNS.begin("diy_smartmeter") ) { 
-    MDNS.addService("http", "tcp", 80);     // Webserver
-    MDNS.addService("p1data", "tcp", 3141); // TCP/IP P1 data provider server
+    MDNS.addService("http", "tcp", WEB_SERVER_PORT);     // Webserver
+    MDNS.addService("p1data", "tcp", P1_DATA_SERVER_PORT); // TCP/IP P1 data provider server
     Serial.printf("mDNS\n");
     Serial.printf("\tmDNS URL          : %s\n", "diy_smartmeter.local");
     Serial.printf("\tWeb server        : %s (anonimize P1 data: %s)\n", "diy_smartmeter.local:80", app_config.tcp_anonimize_p1);
@@ -604,49 +455,21 @@ Version :      DMK, Initial code
     MDNS.update();
 #endif
 
-    // Handle HTTP web server
-    server.handleClient(); // Listen for HTTP requests from clients
-
-    // Handle the TCP data server clients
-    uint8_t i = 0;
-    bool foundOpenWiFiClient = false;
-    WiFiClient client = tcpServer.accept();
-    if (client) { // we have a new client
-      while ( !foundOpenWiFiClient && i < TCP_DATA_SERVER_MAX_CLIENTS ) {
-        if ( !tcpServerClient[i].connected() ) {
-          tcpServerClient[i] = client;
-          tcpServerClient[i].setNoDelay(true);
-          char t[] = "DIY Smartmeter P1\n";
-          tcpServerClient[i].write(t, strlen(t));
-          foundOpenWiFiClient = true;
-        }
-        i++;
-      }
-
-      if ( !foundOpenWiFiClient ) { // No client found, all clients are already connected
-        char t[] = "DIY Smartmeter P1 - too many clients connected.\n";
-        client.write(t, strlen(t));
-        client.stop();
-      }      
-    }
-
+    dashboard.loop();
+    p1DataServer.loop();
   }
 
   // Capture P1 messages. If P1 msg is available raise MQTT event
   if( true == capture_p1() ) {
     if ( app_config.tcp_anonimize_p1_bool ) { // If enabled, anonimize the P1 data before sending it over the TCP server
-      anonymizeP1Data(p1_buf);
-    }
-
-    if ( millis() > webserverTimer + WEBSERVERDATASAMPLERATE ) {
-      addWebDataP1(p1_buf);
-      webserverTimer = millis();
-    }
-    for ( uint8_t i=0; i < TCP_DATA_SERVER_MAX_CLIENTS; i++ ) {
-      if ( tcpServerClient[i].connected() ) { // Send the P1 data to the connected client
-        tcpServerClient[i].write(p1_buf, strlen(p1_buf));
+      if ( !P1DataServer::anonymizeP1(p1_buf) ) {
+        DEBUG_PRINTF(">%s: Parsing equipment ID error\n\r", __FUNCTION__);
       }
     }
+
+    dashboard.processP1(p1_buf);
+    p1DataServer.sendP1(p1_buf);
+
     raiseEvent(EV_P1_AVAILABLE);
   }
 
@@ -979,84 +802,6 @@ Version :      DMK, Initial code
    return retval;
 }
 
-
-/******************************************************************/
-/*
- * RGB LED section
- */
-/******************************************************************/
- 
-/******************************************************************/
-void smartLedColor(RGB_COLOR_ENUM color, RGB_STATE_ENUM state)
-/* 
-short:         
-inputs:        
-outputs: 
-notes:         
-Version :      DMK, Initial code
-*******************************************************************/
-{
-  switch( color ) {
-    case RED:
-      digitalWrite(RGB_R_PIN, state);
-      break;
-    case GREEN:
-      digitalWrite(RGB_G_PIN, state);
-      break;
-    case BLUE:
-      digitalWrite(RGB_B_PIN, state);
-      break;
-    default:
-      break;
-  }
-}
-
-/******************************************************************/
-void smartLedFlash(RGB_COLOR_ENUM color)
-/* 
-short:      Flash current color         
-inputs:        
-outputs: 
-notes:         
-Version :   DMK, Initial code
-*******************************************************************/
-{
-    switch( color ) {
-    case RED:
-      digitalWrite(RGB_R_PIN, ON);
-      delay(50);
-      digitalWrite(RGB_R_PIN, OFF);
-      break;
-    case GREEN:
-      digitalWrite(RGB_G_PIN, ON);
-      delay(50);
-      digitalWrite(RGB_G_PIN, OFF);
-      break;
-    case BLUE:
-      digitalWrite(RGB_B_PIN, ON);
-      delay(50);
-      digitalWrite(RGB_B_PIN, OFF);
-      break;
-    default:
-      break;
-  }
-}
-
-/******************************************************************/
-void smartLedInit()
-/* 
-short:      Init         
-inputs:        
-outputs: 
-notes:         
-Version :   DMK, Initial code
-*******************************************************************/
-{
-  digitalWrite(RGB_R_PIN, 1);
-  digitalWrite(RGB_G_PIN, 1);
-  digitalWrite(RGB_B_PIN, 1);
-}
-
 /******************************************************************
 *
 * FSM section
@@ -1177,34 +922,34 @@ void mqtt_heartbeat(void) {
   if( mqtt_throttle_elapsed >= MQTT_TOPIC_UPDATE_RATE_MS ) {
 
     if ( app_config.mqtt_anonimize_p1_bool ) { // If enabled, anonimize the P1 data before sending it to the MQTT server
-      anonymizeP1Data(p1_buf);
+      if ( !P1DataServer::anonymizeP1(p1_buf) ) {
+        DEBUG_PRINTF(">%s: Parsing equipment ID error\n\r", __FUNCTION__);
+      }
     }
 
     //
     mqtt_throttle_prev = mqtt_throttle_cur; 
   
     // Construct json object and publish
-    //DynamicJsonDocument doc(2048); // migration
     JsonDocument doc;
     JsonObject root = doc.to<JsonObject>();
     
-    //JsonObject datagram = root.createNestedObject("datagram"); // migration
     JsonObject datagram = root["datagram"].to<JsonObject>();
-    datagram["p1"] = p1_buf;
-
+    datagram["p1"]        = p1_buf;
     datagram["signature"] = app_config.mqtt_id;
+    datagram["version"]   = VERSION;
 
-    //JsonObject s0 = datagram.createNestedObject("s0"); // migration
-    JsonObject s0 = datagram["s0"].to<JsonObject>();
-    s0["unit"] = "W";
-    s0["label"] = "e-car charger";
-    s0["value"] = 0;
+    // Currently not used, so delete the objects
+    //JsonObject s0 = datagram["s0"].to<JsonObject>();
+    //s0["unit"] = "W";
+    //s0["label"] = "e-car charger";
+    //s0["value"] = 0;
     
-    //JsonObject s1 = datagram.createNestedObject("s1"); // migration
-    JsonObject s1 = datagram["s1"].to<JsonObject>();
-    s1["unit"] = "W";
-    s1["label"] = "solar panels";
-    s1["value"] = 0;
+    // Currently not used, so delete the objects
+    //JsonObject s1 = datagram["s1"].to<JsonObject>();
+    //s1["unit"] = "W";
+    //s1["label"] = "solar panels";
+    //s1["value"] = 0;
     
     String payload = "";
     serializeJson(doc, payload);
@@ -1221,194 +966,4 @@ void mqtt_heartbeat(void) {
 /******************************************************************/
 void mqtt_post(void){
   DEBUG_PRINTF("%s:\n\r", __FUNCTION__);
-}
-
-/******************************************************************
-*
-* HTTP Web Server section
-*
-******************************************************************/
-
-/******************************************************************/
-void handleRoot() {
-  String rootHtml = R"(
-<!doctype html>
-<html lang="en" data-bs-theme="dark">
-<html>
- <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-  <title>SmartMeter DIY</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
-  <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js" integrity="sha384-I7E8VVD/ismYTF4hNIPjVp/Zjvgyol6VFvRkX/vR+Vc4jQkC+hVqc2pM8ODewa9r" crossorigin="anonymous"></script>
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js" integrity="sha384-Sse/HDqcypGpyTDpvZOJNnG0TT3feGQUkF9H+mnRvic+LjR+K1NhTt8f51KIQ3v3" crossorigin="anonymous"></script>
- </head>
- <body>
-  <script>
-$(document).ready(function(){
- $.ajax({
-    url: "https://raw.githubusercontent.com/AvansETI/SmartMeter_DIY/refs/heads/master/Firmware/sm-esp8266/web/body.html",
-    success: function (data) { $('body').append(data); },
-    dataType: 'html'
- });
-});
-  </script>
- </body>
-</html>)";
-  server.send(200, "text/html", rootHtml);
-}
-
-/******************************************************************/
-void handleDataApi() {
-  String dataJson = "{\"power_consumption\":[";
-  for ( uint16_t i=0; i < webDataPointer-1; i++ ) {
-    dataJson = dataJson + dataActualPowerConsumption[i] + ",";
-  }
-  dataJson = dataJson + dataActualPowerConsumption[webDataPointer-1] + "],\"power_production\":[";
-  for ( uint16_t i=0; i < webDataPointer-1; i++ ) {
-    dataJson = dataJson + dataActualPowerProduction[i] + ",";
-  }
-  dataJson = dataJson + dataActualPowerProduction[webDataPointer-1] + "],\"energy_consumption1\":[";
-  for ( uint16_t i=0; i < webDataPointer-1; i++ ) {
-    dataJson = dataJson + dataEnergyConsumption1[i] + ",";
-  }
-  dataJson = dataJson + dataEnergyConsumption1[webDataPointer-1] + "],\"energy_consumption2\":[";
-  for ( uint16_t i=0; i < webDataPointer-1; i++ ) {
-    dataJson = dataJson + dataEnergyConsumption2[i] + ",";
-  }
-  dataJson = dataJson + dataEnergyConsumption2[webDataPointer-1] + "],\"energy_production1\":[";
-  for ( uint16_t i=0; i < webDataPointer-1; i++ ) {
-    dataJson = dataJson + dataEnergyProduction1[i] + ",";
-  }
-  dataJson = dataJson + dataEnergyProduction1[webDataPointer-1] + "],\"energy_production2\":[";
-  for ( uint16_t i=0; i < webDataPointer-1; i++ ) {
-    dataJson = dataJson + dataEnergyProduction2[i] + ",";
-  }
-  dataJson = dataJson + dataEnergyProduction2[webDataPointer-1] + "],\"DSMRVersion\":\"" + DSMRVersion +
-             "\",\"DSMRTimestamp\":\"" + DSMRTimestamp + "\"}";
-
-  server.send(200, "text/json", dataJson);
-}
-
-/******************************************************************/
-void handleNotFound () {
-  server.send(404, "text/plain", "404: Not found"); // Send HTTP status 404 (Not Found) when there's no handler for the URI in the request
-}
-
-/******************************************************************/
-/* Documentation
-  - https://github.com/energietransitie/dsmr-info/blob/main/dsmr-p1-specs.csv
-  - https://github.com/energietransitie/dsmr-info/blob/main/dsmr-e-meters.csv
-  - https://github.com/reneklootwijk/node-dsmr/tree/master
-*/
-void addWebDataP1(char* p1) {
-  char keys[9][10] = {
-    "1-3:0.2.8", // DMSR version -> 1-3:0.2.8(50)
-    "0-0:1.0.0", // Timestamp    -> 0-0:1.0.0(241221224725W)
-    "1-0:1.8.1", // Total consumption tarrif 1 -> 1-0:1.8.1(007812.965*kWh)
-    "1-0:1.8.2", // Total consumption tarrif 2 -> 1-0:1.8.2(004695.310*kWh)
-    "1-0:2.8.1", // Total production tarrif 1 -> 1-0:2.8.1(002313.919*kWh)
-    "1-0:2.8.2", // Total production tarrif 2 -> 1-0:2.8.2(005836.025*kWh)
-    "0-0:96.14", // Actual tarrif -> 0-0:96.14.0(0001)
-    "1-0:1.7.0", // Actual consumption -> 1-0:1.7.0(00.670*kW)
-    "1-0:2.7.0", // Actual production -> 1-0:2.7.0(00.000*kW)  
-  };
-
-  if ( webDataPointer == WEBSERVERDATALENGTH ) { // shift the values to the left
-    for ( uint16_t i=0; i < WEBSERVERDATALENGTH - 1; i++ ) {
-      dataActualPowerConsumption[i] = dataActualPowerConsumption[i+1];
-      dataActualPowerProduction[i] = dataActualPowerProduction[i+1];
-      dataEnergyConsumption1[i] = dataEnergyConsumption1[i+1];
-      dataEnergyConsumption2[i] = dataEnergyConsumption2[i+1];
-      dataEnergyProduction1[i] = dataEnergyProduction1[i+1];
-      dataEnergyProduction2[i] = dataEnergyProduction2[i+1];
-      webDataPointer = WEBSERVERDATALENGTH - 1; // Set pointer to last element
-    }
-  }
-
-  bool found;
-  size_t p1_length = strlen(p1);
-  for ( uint16_t i=0; i < p1_length - 10; i++ ) { // Process the datagram
-    for (uint8_t k=0; k < 9; k++ ) {
-      found = true;
-      for ( uint8_t j=0; j < 9; j++ ) { // Search for key
-        if ( p1[i+j] != keys[k][j] ) {
-          found = false;
-          break;
-        }
-      }
-      if ( found ) { // found the key
-        char temp[20] = "";
-        switch (k) {
-          case 0:
-            strncpy(DSMRVersion, (const char*) p1+i+9+1, 2); // copy version
-            break;
-          case 1:
-            strncpy(DSMRTimestamp, (const char*) p1+i+9+1, 13); // copy timestamp
-            break;
-          case 2:
-            strncpy(temp, (const char*) p1+i+9+1, 10); // copy consumption tarrif 1
-            dataEnergyConsumption1[webDataPointer] = atof(temp);
-            break;
-          case 3:
-            strncpy(temp, (const char*) p1+i+9+1, 10); // copy consumption tarrif 2
-            dataEnergyConsumption2[webDataPointer] = atof(temp);
-            break;
-          case 4:
-            strncpy(temp, (const char*) p1+i+9+1, 10); // copy production tarrif 1
-            dataEnergyProduction1[webDataPointer] = atof(temp);
-            break;
-          case 5:
-            strncpy(temp, (const char*) p1+i+9+1, 10); // copy production tarrif 2
-            dataEnergyProduction2[webDataPointer] = atof(temp);
-            break;
-          case 6:
-            strncpy(temp, (const char*) p1+i+9+3, 4); // actual tarrif
-            break;
-          case 7:
-            strncpy(temp, (const char*) p1+i+9+1, 6); // actual consumption
-            dataActualPowerConsumption[webDataPointer] = atof(temp);
-            break;
-          case 8:
-            strncpy(temp, (const char*) p1+i+9+1, 6); // actual production
-            dataActualPowerProduction[webDataPointer] = atof(temp);
-            break;
-        }
-      }
-    }
-  }
-  webDataPointer++;
-}
-
-/******************************************************************/
-bool anonymizeP1Data(char* p1) {
-/* 
-short:      Anonymize P1 data by removing the equipment IDs found in the message         
-inputs:     Pointer to the p1 message   
-outputs:    Returns true when parsen successfull, otherwise false.
-notes:      0-0:96.1.1(**EQUIPMENT-ID**) => :96.1. is always equipment identifiers         
-Version :   MS, Initial code
-*******************************************************************/
-  char* indexEqId = strstr(p1, ":96.1.");
-  while ( indexEqId != NULL ) { // Found an equipment ID tag
-
-    char* indexStartId = strchr(indexEqId, '(');
-    char* indexEndId = strchr(indexEqId, ')');
-
-    if ( indexStartId != NULL && indexEndId != NULL && indexEndId > indexStartId ) { // Found the equipment ID
-      for ( uint16_t i=1; i < indexEndId - indexStartId; i++ ) { // Replace equipment ID with zero's
-        indexStartId[i] = '0';
-      }
-
-    } else {
-      DEBUG_PRINTF(">%s: Parsing equipment ID error\n\r", __FUNCTION__);
-      return false;
-    }
-
-    indexEqId = strstr(indexEndId, ":96.1."); // Find the next equipment identifier
-  }
-
-  return true;
 }
