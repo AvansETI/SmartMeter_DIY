@@ -71,7 +71,8 @@
 #include <LittleFS.h>
 #include <PubSubClient.h>
 
-#include "include/config.h" // Configuration parameters
+#include "config.h" // Configuration parameters
+#include "include/Dashboard.hpp"
 
 #define DEBUG
 
@@ -180,35 +181,12 @@ char *p1;
 
 bool anonymizeP1Data(char* p1); // Forward declaration
 
+// Dashboard
+Dashboard dashboard;
+
 // TCP/IP server to implement the P1 datagram provider variables
 WiFiServer tcpServer(TCP_DATA_SERVER_PORT); // TCP/IP server
 WiFiClient tcpServerClient[TCP_DATA_SERVER_MAX_CLIENTS]; // TCP/IP connected clients
-
-// HTTP Web server variables
-#define WEBSERVERDATALENGTH HTTP_SERVER_DATA_LENGTH // Data points that will be stored
-#define WEBSERVERDATASAMPLERATE HTTP_SERVER_SAMPLE_RATE // Sample rate to collect the data points in ms
-#if defined(ESP8266)
-ESP8266WebServer server(80); // WebServer
-#elif defined(ESP32)
-WebServer server(80);
-#endif
-bool webServerInitialized = false;
-uint16_t webDataPointer = 0; // Pointer to the insert point
-uint32_t webserverTimer = 0; // Time used to implement the sample rate
-void addWebDataP1(char* p1); // Add data point to the data store from P1 message
-void handleRoot(); // Handle root page callback
-void handleDataApi(); // Handle data page/api callback
-void handleNotFound(); // Handle not found page callback
-
-// Varibles to store the P1 data that is provided to the webpage
-char DSMRVersion[5] = "-";
-char DSMRTimestamp[14] = "-";
-float dataActualPowerConsumption[WEBSERVERDATALENGTH];  // Actual power consumption kW
-float dataActualPowerProduction[WEBSERVERDATALENGTH];  // Actual power production kW
-float dataEnergyConsumption1[WEBSERVERDATALENGTH]; // Energy consumption 1 kWh
-float dataEnergyConsumption2[WEBSERVERDATALENGTH]; // Energy consumption 2 kWh
-float dataEnergyProduction1[WEBSERVERDATALENGTH]; // Energy production 1 kWh
-float dataEnergyProduction2[WEBSERVERDATALENGTH]; // Energy production 1 kWh
 
 /* Prototype FSM functions. */
 void start_pre(void);
@@ -463,22 +441,8 @@ Version :      DMK, Initial code
 
   // Setup TCP/IP server
   tcpServer.begin();
-  
-  // Web server initialization
-  server.on("/", handleRoot);               // Call the 'handleRoot' function when a client requests URI "/"
-  server.on("/data", handleDataApi);        // Call the 'handleDataApi' function when a client requests URI "/data"
-  server.onNotFound(handleNotFound);        // When a client requests an unknown URI (i.e. something other than "/"), call function "handleNotFound"
-  server.begin();                           // Actually start the server
 
-  // Initialize the data stores with zero
-  for ( uint16_t i=0; i < WEBSERVERDATALENGTH; i++ ) {
-    dataActualPowerConsumption[i] = 0; // Actual power consumpation kW
-    dataActualPowerProduction[i] = 0; // Actual power production kW
-    dataEnergyConsumption1[i] = 0; // Energy 1 consumption Kwh
-    dataEnergyConsumption2[i] = 0; // Energy 2 consumption kWh
-    dataEnergyProduction1[i] = 0; // Energy 1 production kWh
-    dataEnergyProduction2[i] = 0; // Energy 2 production kWh
-  }
+  dashboard.begin();
 
   // Always print config to terminal before swapping serial port
 #if defined(ESP8266)
@@ -604,8 +568,7 @@ Version :      DMK, Initial code
     MDNS.update();
 #endif
 
-    // Handle HTTP web server
-    server.handleClient(); // Listen for HTTP requests from clients
+    dashboard.loop();
 
     // Handle the TCP data server clients
     uint8_t i = 0;
@@ -638,10 +601,8 @@ Version :      DMK, Initial code
       anonymizeP1Data(p1_buf);
     }
 
-    if ( millis() > webserverTimer + WEBSERVERDATASAMPLERATE ) {
-      addWebDataP1(p1_buf);
-      webserverTimer = millis();
-    }
+    //dashboard.processP1(p1_buf);
+
     for ( uint8_t i=0; i < TCP_DATA_SERVER_MAX_CLIENTS; i++ ) {
       if ( tcpServerClient[i].connected() ) { // Send the P1 data to the connected client
         tcpServerClient[i].write(p1_buf, strlen(p1_buf));
@@ -1221,165 +1182,6 @@ void mqtt_heartbeat(void) {
 /******************************************************************/
 void mqtt_post(void){
   DEBUG_PRINTF("%s:\n\r", __FUNCTION__);
-}
-
-/******************************************************************
-*
-* HTTP Web Server section
-*
-******************************************************************/
-
-/******************************************************************/
-void handleRoot() {
-  String rootHtml = R"(
-<!doctype html>
-<html lang="en" data-bs-theme="dark">
-<html>
- <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-  <title>SmartMeter DIY</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
-  <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js" integrity="sha384-I7E8VVD/ismYTF4hNIPjVp/Zjvgyol6VFvRkX/vR+Vc4jQkC+hVqc2pM8ODewa9r" crossorigin="anonymous"></script>
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js" integrity="sha384-Sse/HDqcypGpyTDpvZOJNnG0TT3feGQUkF9H+mnRvic+LjR+K1NhTt8f51KIQ3v3" crossorigin="anonymous"></script>
- </head>
- <body>
-  <script>
-$(document).ready(function(){
- $.ajax({
-    url: "https://raw.githubusercontent.com/AvansETI/SmartMeter_DIY/refs/heads/master/Firmware/sm-esp8266/web/body.html",
-    success: function (data) { $('body').append(data); },
-    dataType: 'html'
- });
-});
-  </script>
- </body>
-</html>)";
-  server.send(200, "text/html", rootHtml);
-}
-
-/******************************************************************/
-void handleDataApi() {
-  String dataJson = "{\"power_consumption\":[";
-  for ( uint16_t i=0; i < webDataPointer-1; i++ ) {
-    dataJson = dataJson + dataActualPowerConsumption[i] + ",";
-  }
-  dataJson = dataJson + dataActualPowerConsumption[webDataPointer-1] + "],\"power_production\":[";
-  for ( uint16_t i=0; i < webDataPointer-1; i++ ) {
-    dataJson = dataJson + dataActualPowerProduction[i] + ",";
-  }
-  dataJson = dataJson + dataActualPowerProduction[webDataPointer-1] + "],\"energy_consumption1\":[";
-  for ( uint16_t i=0; i < webDataPointer-1; i++ ) {
-    dataJson = dataJson + dataEnergyConsumption1[i] + ",";
-  }
-  dataJson = dataJson + dataEnergyConsumption1[webDataPointer-1] + "],\"energy_consumption2\":[";
-  for ( uint16_t i=0; i < webDataPointer-1; i++ ) {
-    dataJson = dataJson + dataEnergyConsumption2[i] + ",";
-  }
-  dataJson = dataJson + dataEnergyConsumption2[webDataPointer-1] + "],\"energy_production1\":[";
-  for ( uint16_t i=0; i < webDataPointer-1; i++ ) {
-    dataJson = dataJson + dataEnergyProduction1[i] + ",";
-  }
-  dataJson = dataJson + dataEnergyProduction1[webDataPointer-1] + "],\"energy_production2\":[";
-  for ( uint16_t i=0; i < webDataPointer-1; i++ ) {
-    dataJson = dataJson + dataEnergyProduction2[i] + ",";
-  }
-  dataJson = dataJson + dataEnergyProduction2[webDataPointer-1] + "],\"DSMRVersion\":\"" + DSMRVersion +
-             "\",\"DSMRTimestamp\":\"" + DSMRTimestamp + "\"}";
-
-  server.send(200, "text/json", dataJson);
-}
-
-/******************************************************************/
-void handleNotFound () {
-  server.send(404, "text/plain", "404: Not found"); // Send HTTP status 404 (Not Found) when there's no handler for the URI in the request
-}
-
-/******************************************************************/
-/* Documentation
-  - https://github.com/energietransitie/dsmr-info/blob/main/dsmr-p1-specs.csv
-  - https://github.com/energietransitie/dsmr-info/blob/main/dsmr-e-meters.csv
-  - https://github.com/reneklootwijk/node-dsmr/tree/master
-*/
-void addWebDataP1(char* p1) {
-  char keys[9][10] = {
-    "1-3:0.2.8", // DMSR version -> 1-3:0.2.8(50)
-    "0-0:1.0.0", // Timestamp    -> 0-0:1.0.0(241221224725W)
-    "1-0:1.8.1", // Total consumption tarrif 1 -> 1-0:1.8.1(007812.965*kWh)
-    "1-0:1.8.2", // Total consumption tarrif 2 -> 1-0:1.8.2(004695.310*kWh)
-    "1-0:2.8.1", // Total production tarrif 1 -> 1-0:2.8.1(002313.919*kWh)
-    "1-0:2.8.2", // Total production tarrif 2 -> 1-0:2.8.2(005836.025*kWh)
-    "0-0:96.14", // Actual tarrif -> 0-0:96.14.0(0001)
-    "1-0:1.7.0", // Actual consumption -> 1-0:1.7.0(00.670*kW)
-    "1-0:2.7.0", // Actual production -> 1-0:2.7.0(00.000*kW)  
-  };
-
-  if ( webDataPointer == WEBSERVERDATALENGTH ) { // shift the values to the left
-    for ( uint16_t i=0; i < WEBSERVERDATALENGTH - 1; i++ ) {
-      dataActualPowerConsumption[i] = dataActualPowerConsumption[i+1];
-      dataActualPowerProduction[i] = dataActualPowerProduction[i+1];
-      dataEnergyConsumption1[i] = dataEnergyConsumption1[i+1];
-      dataEnergyConsumption2[i] = dataEnergyConsumption2[i+1];
-      dataEnergyProduction1[i] = dataEnergyProduction1[i+1];
-      dataEnergyProduction2[i] = dataEnergyProduction2[i+1];
-      webDataPointer = WEBSERVERDATALENGTH - 1; // Set pointer to last element
-    }
-  }
-
-  bool found;
-  size_t p1_length = strlen(p1);
-  for ( uint16_t i=0; i < p1_length - 10; i++ ) { // Process the datagram
-    for (uint8_t k=0; k < 9; k++ ) {
-      found = true;
-      for ( uint8_t j=0; j < 9; j++ ) { // Search for key
-        if ( p1[i+j] != keys[k][j] ) {
-          found = false;
-          break;
-        }
-      }
-      if ( found ) { // found the key
-        char temp[20] = "";
-        switch (k) {
-          case 0:
-            strncpy(DSMRVersion, (const char*) p1+i+9+1, 2); // copy version
-            break;
-          case 1:
-            strncpy(DSMRTimestamp, (const char*) p1+i+9+1, 13); // copy timestamp
-            break;
-          case 2:
-            strncpy(temp, (const char*) p1+i+9+1, 10); // copy consumption tarrif 1
-            dataEnergyConsumption1[webDataPointer] = atof(temp);
-            break;
-          case 3:
-            strncpy(temp, (const char*) p1+i+9+1, 10); // copy consumption tarrif 2
-            dataEnergyConsumption2[webDataPointer] = atof(temp);
-            break;
-          case 4:
-            strncpy(temp, (const char*) p1+i+9+1, 10); // copy production tarrif 1
-            dataEnergyProduction1[webDataPointer] = atof(temp);
-            break;
-          case 5:
-            strncpy(temp, (const char*) p1+i+9+1, 10); // copy production tarrif 2
-            dataEnergyProduction2[webDataPointer] = atof(temp);
-            break;
-          case 6:
-            strncpy(temp, (const char*) p1+i+9+3, 4); // actual tarrif
-            break;
-          case 7:
-            strncpy(temp, (const char*) p1+i+9+1, 6); // actual consumption
-            dataActualPowerConsumption[webDataPointer] = atof(temp);
-            break;
-          case 8:
-            strncpy(temp, (const char*) p1+i+9+1, 6); // actual production
-            dataActualPowerProduction[webDataPointer] = atof(temp);
-            break;
-        }
-      }
-    }
-  }
-  webDataPointer++;
 }
 
 /******************************************************************/
