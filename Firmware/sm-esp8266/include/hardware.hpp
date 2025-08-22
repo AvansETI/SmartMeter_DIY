@@ -91,6 +91,137 @@ typedef enum {
   ON = 0, OFF
 } RGB_STATE_ENUM;
 
-void harwareSetup () {
+/******************************************************************/
+void resetHardware () 
+/* 
+short: Performs a hardware reset of the chip.        
+inputs:        
+outputs: 
+notes:         
+Version: MS, Initial code
+*******************************************************************/
+{
+#if defined(ESP8266)
+  ESP.reset();
+#elif defined(ESP32)
+  esp_restart();
+#endif
+}
 
+#if defined(ESP32)
+/******************************************************************/
+void getResetReason(char* s) {
+/* 
+short: Get the reset reason of the chip.        
+inputs: char pointer       
+outputs: char pointer filled with reason
+notes: https://docs.espressif.com/projects/arduino-esp32/en/latest/api/reset_reason.html
+Version: MS, Initial code
+*******************************************************************/
+  switch ( esp_reset_reason() ) {
+    case 1:  sprintf(s, "POWERON_RESET"); break;          /**<1,  Vbat power on reset*/
+    case 3:  sprintf(s, "SW_RESET"); break;               /**<3,  Software reset digital core*/
+    case 4:  sprintf(s, "OWDT_RESET"); break;             /**<4,  Legacy watch dog reset digital core*/
+    case 5:  sprintf(s, "DEEPSLEEP_RESET"); break;        /**<5,  Deep Sleep reset digital core*/
+    case 6:  sprintf(s, "SDIO_RESET"); break;             /**<6,  Reset by SLC module, reset digital core*/
+    case 7:  sprintf(s, "TG0WDT_SYS_RESET"); break;       /**<7,  Timer Group0 Watch dog reset digital core*/
+    case 8:  sprintf(s, "TG1WDT_SYS_RESET"); break;       /**<8,  Timer Group1 Watch dog reset digital core*/
+    case 9:  sprintf(s, "RTCWDT_SYS_RESET"); break;       /**<9,  RTC Watch dog Reset digital core*/
+    case 10: sprintf(s, "INTRUSION_RESET"); break;        /**<10, Instrusion tested to reset CPU*/
+    case 11: sprintf(s, "TGWDT_CPU_RESET"); break;        /**<11, Time Group reset CPU*/
+    case 12: sprintf(s, "SW_CPU_RESET"); break;           /**<12, Software reset CPU*/
+    case 13: sprintf(s, "RTCWDT_CPU_RESET"); break;       /**<13, RTC Watch dog Reset CPU*/
+    case 14: sprintf(s, "EXT_CPU_RESET"); break;          /**<14, for APP CPU, reset by PRO CPU*/
+    case 15: sprintf(s, "RTCWDT_BROWN_OUT_RESET"); break; /**<15, Reset when the vdd voltage is not stable*/
+    default: sprintf(s, "NO_MEAN");
+  }
+}
+#endif
+
+/******************************************************************/
+/*
+ * RGB LED section
+ */
+/******************************************************************/
+ 
+/******************************************************************/
+void smartLedColor(RGB_COLOR_ENUM color, RGB_STATE_ENUM state)
+/* 
+short:         
+inputs:        
+outputs: 
+notes:         
+Version :      DMK, Initial code
+*******************************************************************/
+{
+  switch( color ) {
+    case RED:
+      digitalWrite(RGB_R_PIN, state);
+      break;
+    case GREEN:
+      digitalWrite(RGB_G_PIN, state);
+      break;
+    case BLUE:
+      digitalWrite(RGB_B_PIN, state);
+      break;
+    default:
+      break;
+  }
+}
+
+/******************************************************************/
+void smartLedFlash(RGB_COLOR_ENUM color)
+/* 
+short:      Flash current color         
+inputs:        
+outputs: 
+notes:         
+Version :   DMK, Initial code
+*******************************************************************/
+{
+    switch( color ) {
+    case RED:
+      digitalWrite(RGB_R_PIN, ON);
+      delay(50);
+      digitalWrite(RGB_R_PIN, OFF);
+      break;
+    case GREEN:
+      digitalWrite(RGB_G_PIN, ON);
+      delay(50);
+      digitalWrite(RGB_G_PIN, OFF);
+      break;
+    case BLUE:
+      digitalWrite(RGB_B_PIN, ON);
+      delay(50);
+      digitalWrite(RGB_B_PIN, OFF);
+      break;
+    default:
+      break;
+  }
+}
+
+/******************************************************************/
+void smartLedInit()
+/* 
+short:      Init         
+inputs:        
+outputs: 
+notes:         
+Version :   DMK, Initial code
+*******************************************************************/
+{
+  digitalWrite(RGB_R_PIN, 1);
+  digitalWrite(RGB_G_PIN, 1);
+  digitalWrite(RGB_B_PIN, 1);
+}
+
+void hardwareSetup () {
+  // Define I/O and attach ISR
+  pinMode(RST_PIN, INPUT_PULLUP); // Reset - Use internal pullup
+  pinMode(RGB_R_PIN, OUTPUT);     // Red RGB led
+  pinMode(RGB_G_PIN, OUTPUT);     // Green RGB led
+  pinMode(RGB_B_PIN, OUTPUT);     // Blue RGB led
+
+  // Init with red led
+  smartLedInit();
 }

@@ -51,6 +51,8 @@
  
   Happy Coding
   -------------------------------------------------------------------------*/
+#define VERSION "2.0"
+
 #if defined(ESP8266)
 #include <ESP8266WiFi.h>
 #include <ESP8266WebServer.h>
@@ -72,6 +74,7 @@
 #include <PubSubClient.h>
 
 #include "config.h" // Configuration parameters
+#include "include/hardware.hpp"
 #include "include/dashboard.hpp"
 #include "include/p1dataserver.hpp"
 
@@ -213,53 +216,6 @@ Version :      DMK, Initial code
 }
 
 /******************************************************************/
-void resetHardware () 
-/* 
-short: Performs a hardware reset of the chip.        
-inputs:        
-outputs: 
-notes:         
-Version: MS, Initial code
-*******************************************************************/
-{
-#if defined(ESP8266)
-  ESP.reset();
-#elif defined(ESP32)
-  esp_restart();
-#endif
-}
-
-#if defined(ESP32)
-/******************************************************************/
-void getResetReason(char* s) {
-/* 
-short: Get the reset reason of the chip.        
-inputs: char pointer       
-outputs: char pointer filled with reason
-notes: https://docs.espressif.com/projects/arduino-esp32/en/latest/api/reset_reason.html
-Version: MS, Initial code
-*******************************************************************/
-  switch ( esp_reset_reason() ) {
-    case 1:  sprintf(s, "POWERON_RESET"); break;          /**<1,  Vbat power on reset*/
-    case 3:  sprintf(s, "SW_RESET"); break;               /**<3,  Software reset digital core*/
-    case 4:  sprintf(s, "OWDT_RESET"); break;             /**<4,  Legacy watch dog reset digital core*/
-    case 5:  sprintf(s, "DEEPSLEEP_RESET"); break;        /**<5,  Deep Sleep reset digital core*/
-    case 6:  sprintf(s, "SDIO_RESET"); break;             /**<6,  Reset by SLC module, reset digital core*/
-    case 7:  sprintf(s, "TG0WDT_SYS_RESET"); break;       /**<7,  Timer Group0 Watch dog reset digital core*/
-    case 8:  sprintf(s, "TG1WDT_SYS_RESET"); break;       /**<8,  Timer Group1 Watch dog reset digital core*/
-    case 9:  sprintf(s, "RTCWDT_SYS_RESET"); break;       /**<9,  RTC Watch dog Reset digital core*/
-    case 10: sprintf(s, "INTRUSION_RESET"); break;        /**<10, Instrusion tested to reset CPU*/
-    case 11: sprintf(s, "TGWDT_CPU_RESET"); break;        /**<11, Time Group reset CPU*/
-    case 12: sprintf(s, "SW_CPU_RESET"); break;           /**<12, Software reset CPU*/
-    case 13: sprintf(s, "RTCWDT_CPU_RESET"); break;       /**<13, RTC Watch dog Reset CPU*/
-    case 14: sprintf(s, "EXT_CPU_RESET"); break;          /**<14, for APP CPU, reset by PRO CPU*/
-    case 15: sprintf(s, "RTCWDT_BROWN_OUT_RESET"); break; /**<15, Reset when the vdd voltage is not stable*/
-    default: sprintf(s, "NO_MEAN");
-  }
-}
-#endif
-
-/******************************************************************/
 void setup() 
 /* 
 short:         initial setup(), runes only one time
@@ -268,12 +224,8 @@ outputs:
 notes:         
 Version :      DMK, Initial code
 *******************************************************************/
-{    
-  // Define I/O and attach ISR
-  pinMode(RST_PIN, INPUT_PULLUP); // Reset - Use internal pullup
-  pinMode(RGB_R_PIN, OUTPUT);     // Red RGB led
-  pinMode(RGB_G_PIN, OUTPUT);     // Green RGB led
-  pinMode(RGB_B_PIN, OUTPUT);     // Blue RGB led
+{  
+  hardwareSetup();  
   
   // Already initialize the serial, so debugging is possible from this step already
   #if defined(ESP8266)
@@ -281,9 +233,6 @@ Version :      DMK, Initial code
   #elif defined(ESP32)
     Serial.begin(115200);
   #endif
-
-  // Init with red led
-  smartLedInit();
 
   // Say Hello to user
   for(uint8_t idx = 0; idx < 2; idx++ ) {
@@ -852,84 +801,6 @@ Version :      DMK, Initial code
    return retval;
 }
 
-
-/******************************************************************/
-/*
- * RGB LED section
- */
-/******************************************************************/
- 
-/******************************************************************/
-void smartLedColor(RGB_COLOR_ENUM color, RGB_STATE_ENUM state)
-/* 
-short:         
-inputs:        
-outputs: 
-notes:         
-Version :      DMK, Initial code
-*******************************************************************/
-{
-  switch( color ) {
-    case RED:
-      digitalWrite(RGB_R_PIN, state);
-      break;
-    case GREEN:
-      digitalWrite(RGB_G_PIN, state);
-      break;
-    case BLUE:
-      digitalWrite(RGB_B_PIN, state);
-      break;
-    default:
-      break;
-  }
-}
-
-/******************************************************************/
-void smartLedFlash(RGB_COLOR_ENUM color)
-/* 
-short:      Flash current color         
-inputs:        
-outputs: 
-notes:         
-Version :   DMK, Initial code
-*******************************************************************/
-{
-    switch( color ) {
-    case RED:
-      digitalWrite(RGB_R_PIN, ON);
-      delay(50);
-      digitalWrite(RGB_R_PIN, OFF);
-      break;
-    case GREEN:
-      digitalWrite(RGB_G_PIN, ON);
-      delay(50);
-      digitalWrite(RGB_G_PIN, OFF);
-      break;
-    case BLUE:
-      digitalWrite(RGB_B_PIN, ON);
-      delay(50);
-      digitalWrite(RGB_B_PIN, OFF);
-      break;
-    default:
-      break;
-  }
-}
-
-/******************************************************************/
-void smartLedInit()
-/* 
-short:      Init         
-inputs:        
-outputs: 
-notes:         
-Version :   DMK, Initial code
-*******************************************************************/
-{
-  digitalWrite(RGB_R_PIN, 1);
-  digitalWrite(RGB_G_PIN, 1);
-  digitalWrite(RGB_B_PIN, 1);
-}
-
 /******************************************************************
 *
 * FSM section
@@ -1059,27 +930,25 @@ void mqtt_heartbeat(void) {
     mqtt_throttle_prev = mqtt_throttle_cur; 
   
     // Construct json object and publish
-    //DynamicJsonDocument doc(2048); // migration
     JsonDocument doc;
     JsonObject root = doc.to<JsonObject>();
     
-    //JsonObject datagram = root.createNestedObject("datagram"); // migration
     JsonObject datagram = root["datagram"].to<JsonObject>();
-    datagram["p1"] = p1_buf;
-
+    datagram["p1"]        = p1_buf;
     datagram["signature"] = app_config.mqtt_id;
+    datagram["version"]   = VERSION;
 
-    //JsonObject s0 = datagram.createNestedObject("s0"); // migration
-    JsonObject s0 = datagram["s0"].to<JsonObject>();
-    s0["unit"] = "W";
-    s0["label"] = "e-car charger";
-    s0["value"] = 0;
+    // Currently not used, so delete the objects
+    //JsonObject s0 = datagram["s0"].to<JsonObject>();
+    //s0["unit"] = "W";
+    //s0["label"] = "e-car charger";
+    //s0["value"] = 0;
     
-    //JsonObject s1 = datagram.createNestedObject("s1"); // migration
-    JsonObject s1 = datagram["s1"].to<JsonObject>();
-    s1["unit"] = "W";
-    s1["label"] = "solar panels";
-    s1["value"] = 0;
+    // Currently not used, so delete the objects
+    //JsonObject s1 = datagram["s1"].to<JsonObject>();
+    //s1["unit"] = "W";
+    //s1["label"] = "solar panels";
+    //s1["value"] = 0;
     
     String payload = "";
     serializeJson(doc, payload);
