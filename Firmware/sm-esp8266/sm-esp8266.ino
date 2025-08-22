@@ -42,6 +42,7 @@
   V2.0: Adapted the source code to be compiled for the Wemos S2 mini (Lolin S2 mini / ESP32S2) as well the current ESP32S2.
         Added the option to anonimize (zero all equipment IDs) of the P1 data that is send to the MQTT server and TCP clients.
         Removed EMON and ETI wordings and go for consistent DIY_SMARTMETER.
+        Implemented the dashboard, p1 data server and hardware functionality into seperate library files for readability.
 
   Installation Arduino IDE:
   - How to get the Wemos installed in the Ardiuno IDE: https://siytek.com/wemos-d1-mini-arduino-wifi/
