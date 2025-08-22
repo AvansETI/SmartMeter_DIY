@@ -102,10 +102,6 @@ public:
     this->server.handleClient(); // Listen for HTTP requests from clients
   }
 
-  bool connected2SmartMeter () {
-    return ( millis() < this->serverTimer + WEB_SERVER_SAMPLE_RATE * 2 );
-  }
-
   /******************************************************************/
   void handleRoot() {
     String rootHtml = R"(
@@ -164,8 +160,7 @@ $.ajax({
       dataJson = dataJson + energyProduction2[i] + ",";
     }
     dataJson = dataJson + energyProduction2[this->dataPointer-1] + "],\"DSMRVersion\":\"" + DSMRVersion +
-              "\",\"DSMRTimestamp\":\"" + DSMRTimestamp +
-              "\",\"connected\":" + (this->connected2SmartMeter() ? "1" : "0") + "}";
+              "\",\"DSMRTimestamp\":\"" + DSMRTimestamp + "\"}\n";
 
     server.send(200, "text/json", dataJson);
   }
