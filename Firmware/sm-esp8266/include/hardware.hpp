@@ -110,7 +110,7 @@ Version: MS, Initial code
 
 #if defined(ESP32)
 /******************************************************************/
-void getResetReason(char* s) {
+void getResetReason(char* s)
 /* 
 short: Get the reset reason of the chip.        
 inputs: char pointer       
@@ -118,6 +118,7 @@ outputs: char pointer filled with reason
 notes: https://docs.espressif.com/projects/arduino-esp32/en/latest/api/reset_reason.html
 Version: MS, Initial code
 *******************************************************************/
+{
   switch ( esp_reset_reason() ) {
     case 1:  sprintf(s, "POWERON_RESET"); break;          /**<1,  Vbat power on reset*/
     case 3:  sprintf(s, "SW_RESET"); break;               /**<3,  Software reset digital core*/
@@ -215,7 +216,16 @@ Version :   DMK, Initial code
   digitalWrite(RGB_B_PIN, 1);
 }
 
-void hardwareSetup () {
+/******************************************************************/
+void hardwareSetup () 
+/* 
+short:      Executed the initialization of the hardware of the controller
+inputs:        
+outputs: 
+notes:         
+Version :   MS, Initial code
+*******************************************************************/
+{
   // Define I/O and attach ISR
   pinMode(RST_PIN, INPUT_PULLUP); // Reset - Use internal pullup
   pinMode(RGB_R_PIN, OUTPUT);     // Red RGB led

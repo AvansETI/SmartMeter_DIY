@@ -73,7 +73,17 @@ private:
   float energyProduction2[WEB_SERVER_DATA_LENGTH]; // Energy production 1 kWh
 
 public:
-  Dashboard (): server(WEB_SERVER_PORT) {
+
+  /******************************************************************/
+  Dashboard (): server(WEB_SERVER_PORT)
+  /* 
+  short:   Constructor of the class.    
+  inputs:        
+  outputs: 
+  notes:         
+  Version: MS, Initial code
+  *******************************************************************/
+  {
     this->dataPointer = 0;
     this->serverTimer = 0;
 
@@ -91,19 +101,48 @@ public:
     }
   }
 
-  void begin () {
+  /******************************************************************/
+  void begin ()
+  /* 
+  short:   Arduino convention to setup the library using begin().
+  inputs:        
+  outputs: 
+  notes:         
+  Version: MS, Initial code
+  *******************************************************************/
+  {
     this->server.on("/", std::bind(&Dashboard::handleRoot, this));               // Call the 'handleRoot' function when a client requests URI "/"
     this->server.on("/data", std::bind(&Dashboard::handleDataApi, this));        // Call the 'handleDataApi' function when a client requests URI "/data"
     this->server.onNotFound(std::bind(&Dashboard::handleNotFound, this));        // When a client requests an unknown URI (i.e. something other than "/"), call function "handleNotFound"
     this->server.begin(); // Actually start the server
   }
 
-  void loop () {
+  /******************************************************************/
+  void loop ()
+  /* 
+  short:   Method is required to be called in the main loop() of the sketch to handle the library functionality.
+  inputs:        
+  outputs: 
+  notes:         
+  Version: MS, Initial code
+  *******************************************************************/
+  {
     this->server.handleClient(); // Listen for HTTP requests from clients
   }
 
   /******************************************************************/
-  void handleRoot() {
+  void handleRoot()
+  /* 
+  short:   Returns the HTML page when the root page is called. This HTML must be
+           limited in Flash and RAM space and should load all complex functionality
+           and designs from the Internet. The body shall be loaded from an external
+           source like a github repo.
+  inputs:        
+  outputs: 
+  notes:         
+  Version: MS, Initial code
+  *******************************************************************/  
+  {
     String rootHtml = R"(
 <!doctype html>
 <html lang="en" data-bs-theme="dark">
@@ -134,7 +173,15 @@ $.ajax({
   }
 
   /******************************************************************/
-  void handleDataApi() {
+  void handleDataApi()
+  /* 
+  short:   Returns a JSON with the data that is collected.
+  inputs:        
+  outputs: 
+  notes:         
+  Version: MS, Initial code
+  *******************************************************************/
+  {
     String dataJson = "{\"power_consumption\":["; 
     for ( uint16_t i=0; i < this->dataPointer-1; i++ ) {
       dataJson = dataJson + actualPowerConsumption[i] + ",";
@@ -166,17 +213,31 @@ $.ajax({
   }
 
   /******************************************************************/
-  void handleNotFound () {
+  void handleNotFound ()
+  /* 
+  short:   Returns a simple text page that shows that the page is not found.
+  inputs:        
+  outputs: 
+  notes:         
+  Version: MS, Initial code
+  *******************************************************************/
+  {
     server.send(404, "text/plain", "404: Not found"); // Send HTTP status 404 (Not Found) when there's no handler for the URI in the request
   }
 
   /******************************************************************/
-  /* Documentation
-    - https://github.com/energietransitie/dsmr-info/blob/main/dsmr-p1-specs.csv
-    - https://github.com/energietransitie/dsmr-info/blob/main/dsmr-e-meters.csv
-    - https://github.com/reneklootwijk/node-dsmr/tree/master
-  */
-  void processP1(char* p1) {
+  void processP1(char* p1)
+  /* 
+  short:   Processes the P1 message and collects the data that is required for the web
+           server. 
+  inputs:  char* p1 that points to the p1 datagram
+  outputs: 
+  notes:   https://github.com/energietransitie/dsmr-info/blob/main/dsmr-p1-specs.csv
+           https://github.com/energietransitie/dsmr-info/blob/main/dsmr-e-meters.csv
+           https://github.com/reneklootwijk/node-dsmr/tree/master  
+  Version: MS, Initial code
+  *******************************************************************/
+  {
     if ( millis() < this->serverTimer + WEB_SERVER_SAMPLE_RATE ) return;
     this->serverTimer = millis(); // Reset the sample rate timer
 

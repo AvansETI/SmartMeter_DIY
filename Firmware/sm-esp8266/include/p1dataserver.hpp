@@ -58,17 +58,42 @@ private:
 
 public:
 
-  P1DataServer (): tcpServer(P1_DATA_SERVER_PORT) {
-
-
+  /******************************************************************/
+  P1DataServer (): tcpServer(P1_DATA_SERVER_PORT)
+  /* 
+  short:   Constructor of the class.        
+  inputs:        
+  outputs: 
+  notes:         
+  Version: MS, Initial code
+  *******************************************************************/
+  {
   }
 
-  void begin () {
-    // Setup TCP/IP server
+  /******************************************************************/
+  void begin ()
+  /* 
+  short:   Arduino convention to setup the library using begin().        
+  inputs:        
+  outputs: 
+  notes:         
+  Version: MS, Initial code
+  *******************************************************************/
+  {
     this->tcpServer.begin();
   }
 
-  void loop () {
+  /******************************************************************/
+  void loop () 
+  /* 
+  short:   Method is required to be called in the main loop() of the sketch to handle the library functionality.
+           It handles the incoming clients and connected clients.    
+  inputs:        
+  outputs: 
+  notes:         
+  Version: MS, Initial code
+  *******************************************************************/
+  {
     // Handle the TCP data server clients
     uint8_t i = 0;
     bool foundOpenWiFiClient = false;
@@ -93,7 +118,16 @@ public:
     }
   }
 
-  void sendP1 (char* p1) {
+  /******************************************************************/
+  void sendP1 (char* p1)
+  /* 
+  short:   Sends the P1 message to all the connected clients.    
+  inputs:        
+  outputs: 
+  notes:         
+  Version: MS, Initial code
+  *******************************************************************/
+  {
     for ( uint8_t i=0; i < P1_DATA_SERVER_MAX_CLIENTS; i++ ) {
       if ( this->tcpServerClient[i].connected() ) { // Send the P1 data to the connected clients
         this->tcpServerClient[i].write(p1, strlen(p1));
@@ -102,7 +136,7 @@ public:
   }
 
   /******************************************************************/
-  static bool anonymizeP1(char* p1) {
+  static bool anonymizeP1(char* p1)
   /* 
   short:      Anonymize P1 data by removing the equipment IDs found in the message         
   inputs:     Pointer to the p1 message   
@@ -110,6 +144,7 @@ public:
   notes:      0-0:96.1.1(**EQUIPMENT-ID**) => :96.1. is always equipment identifiers         
   Version :   MS, Initial code
   *******************************************************************/
+  {
     char* indexEqId = strstr(p1, ":96.1.");
     while ( indexEqId != NULL ) { // Found an equipment ID tag
 
@@ -130,6 +165,5 @@ public:
 
     return true;
   }
-
 
 };
