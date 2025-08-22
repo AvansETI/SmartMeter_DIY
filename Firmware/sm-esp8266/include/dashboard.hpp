@@ -34,6 +34,7 @@
   -------------------------------------------------------------------------*/
 
 // Configuration part of the library
+#define WEB_SERVER_PORT            80
 #define WEB_SERVER_DATA_LENGTH     12*3    // Data points that will be stored
 #define WEB_SERVER_SAMPLE_RATE     1000*60 // Sample rate to collect the data points in ms
 
@@ -72,7 +73,7 @@ private:
   float energyProduction2[WEB_SERVER_DATA_LENGTH]; // Energy production 1 kWh
 
 public:
-  Dashboard (): server(80) {
+  Dashboard (): server(WEB_SERVER_PORT) {
     this->dataPointer = 0;
     this->serverTimer = 0;
 
@@ -99,6 +100,10 @@ public:
 
   void loop () {
     this->server.handleClient(); // Listen for HTTP requests from clients
+  }
+
+  bool connected2SmartMeter () {
+    return ( millis() < this->serverTimer + WEB_SERVER_SAMPLE_RATE * 2 );
   }
 
   /******************************************************************/
@@ -134,7 +139,7 @@ $.ajax({
 
   /******************************************************************/
   void handleDataApi() {
-    String dataJson = "{\"power_consumption\":[";
+    String dataJson = "{\"power_consumption\":["; 
     for ( uint16_t i=0; i < this->dataPointer-1; i++ ) {
       dataJson = dataJson + actualPowerConsumption[i] + ",";
     }
@@ -159,7 +164,8 @@ $.ajax({
       dataJson = dataJson + energyProduction2[i] + ",";
     }
     dataJson = dataJson + energyProduction2[this->dataPointer-1] + "],\"DSMRVersion\":\"" + DSMRVersion +
-              "\",\"DSMRTimestamp\":\"" + DSMRTimestamp + "\"}";
+              "\",\"DSMRTimestamp\":\"" + DSMRTimestamp +
+              "\",\"connected\":" + (this->connected2SmartMeter() ? "1" : "0") + "}";
 
     server.send(200, "text/json", dataJson);
   }

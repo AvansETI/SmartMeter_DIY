@@ -49,7 +49,5 @@
 #define MQTT_ANONIMIZE_P1_LENGTH   32
 
 // Local services configuration
-#define TCP_DATA_SERVER_PORT        3141
-#define TCP_DATA_SERVER_MAX_CLIENTS 2       // Too many clients will have effect on performance (1-5)
 #define TCP_ANONIMIZE_P1            "NO"    // YES/NO, default NO while this data stays in the local network
 #define TCP_ANONIMIZE_P1_LENGTH     32

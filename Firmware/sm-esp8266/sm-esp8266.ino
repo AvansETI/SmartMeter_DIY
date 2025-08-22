@@ -72,7 +72,8 @@
 #include <PubSubClient.h>
 
 #include "config.h" // Configuration parameters
-#include "include/Dashboard.hpp"
+#include "include/dashboard.hpp"
+#include "include/p1dataserver.hpp"
 
 #define DEBUG
 
@@ -179,14 +180,11 @@ uint32_t mqttTimer = 0; // Time used to reconnect to the mqtt server, when disco
 char p1_buf[P1_MAX_DATAGRAM_SIZE]; // Complete P1 telegram
 char *p1;
 
-bool anonymizeP1Data(char* p1); // Forward declaration
-
 // Dashboard
 Dashboard dashboard;
 
-// TCP/IP server to implement the P1 datagram provider variables
-WiFiServer tcpServer(TCP_DATA_SERVER_PORT); // TCP/IP server
-WiFiClient tcpServerClient[TCP_DATA_SERVER_MAX_CLIENTS]; // TCP/IP connected clients
+// P1 Data Server
+P1DataServer p1DataServer;
 
 /* Prototype FSM functions. */
 void start_pre(void);
@@ -439,10 +437,8 @@ Version :      DMK, Initial code
     writeAppConfig(&app_config);
   }
 
-  // Setup TCP/IP server
-  tcpServer.begin();
-
   dashboard.begin();
+  p1DataServer.begin();
 
   // Always print config to terminal before swapping serial port
 #if defined(ESP8266)
@@ -482,8 +478,8 @@ Version :      DMK, Initial code
 
   // Setup mDNS Service
   if ( MDNS.begin("diy_smartmeter") ) { 
-    MDNS.addService("http", "tcp", 80);     // Webserver
-    MDNS.addService("p1data", "tcp", 3141); // TCP/IP P1 data provider server
+    MDNS.addService("http", "tcp", WEB_SERVER_PORT);     // Webserver
+    MDNS.addService("p1data", "tcp", P1_DATA_SERVER_PORT); // TCP/IP P1 data provider server
     Serial.printf("mDNS\n");
     Serial.printf("\tmDNS URL          : %s\n", "diy_smartmeter.local");
     Serial.printf("\tWeb server        : %s (anonimize P1 data: %s)\n", "diy_smartmeter.local:80", app_config.tcp_anonimize_p1);
@@ -569,45 +565,20 @@ Version :      DMK, Initial code
 #endif
 
     dashboard.loop();
-
-    // Handle the TCP data server clients
-    uint8_t i = 0;
-    bool foundOpenWiFiClient = false;
-    WiFiClient client = tcpServer.accept();
-    if (client) { // we have a new client
-      while ( !foundOpenWiFiClient && i < TCP_DATA_SERVER_MAX_CLIENTS ) {
-        if ( !tcpServerClient[i].connected() ) {
-          tcpServerClient[i] = client;
-          tcpServerClient[i].setNoDelay(true);
-          char t[] = "DIY Smartmeter P1\n";
-          tcpServerClient[i].write(t, strlen(t));
-          foundOpenWiFiClient = true;
-        }
-        i++;
-      }
-
-      if ( !foundOpenWiFiClient ) { // No client found, all clients are already connected
-        char t[] = "DIY Smartmeter P1 - too many clients connected.\n";
-        client.write(t, strlen(t));
-        client.stop();
-      }      
-    }
-
+    p1DataServer.loop();
   }
 
   // Capture P1 messages. If P1 msg is available raise MQTT event
   if( true == capture_p1() ) {
     if ( app_config.tcp_anonimize_p1_bool ) { // If enabled, anonimize the P1 data before sending it over the TCP server
-      anonymizeP1Data(p1_buf);
-    }
-
-    //dashboard.processP1(p1_buf);
-
-    for ( uint8_t i=0; i < TCP_DATA_SERVER_MAX_CLIENTS; i++ ) {
-      if ( tcpServerClient[i].connected() ) { // Send the P1 data to the connected client
-        tcpServerClient[i].write(p1_buf, strlen(p1_buf));
+      if ( !P1DataServer::anonymizeP1(p1_buf) ) {
+        DEBUG_PRINTF(">%s: Parsing equipment ID error\n\r", __FUNCTION__);
       }
     }
+
+    dashboard.processP1(p1_buf);
+    p1DataServer.sendP1(p1_buf);
+
     raiseEvent(EV_P1_AVAILABLE);
   }
 
@@ -1138,7 +1109,9 @@ void mqtt_heartbeat(void) {
   if( mqtt_throttle_elapsed >= MQTT_TOPIC_UPDATE_RATE_MS ) {
 
     if ( app_config.mqtt_anonimize_p1_bool ) { // If enabled, anonimize the P1 data before sending it to the MQTT server
-      anonymizeP1Data(p1_buf);
+      if ( !P1DataServer::anonymizeP1(p1_buf) ) {
+        DEBUG_PRINTF(">%s: Parsing equipment ID error\n\r", __FUNCTION__);
+      }
     }
 
     //
@@ -1182,35 +1155,4 @@ void mqtt_heartbeat(void) {
 /******************************************************************/
 void mqtt_post(void){
   DEBUG_PRINTF("%s:\n\r", __FUNCTION__);
-}
-
-/******************************************************************/
-bool anonymizeP1Data(char* p1) {
-/* 
-short:      Anonymize P1 data by removing the equipment IDs found in the message         
-inputs:     Pointer to the p1 message   
-outputs:    Returns true when parsen successfull, otherwise false.
-notes:      0-0:96.1.1(**EQUIPMENT-ID**) => :96.1. is always equipment identifiers         
-Version :   MS, Initial code
-*******************************************************************/
-  char* indexEqId = strstr(p1, ":96.1.");
-  while ( indexEqId != NULL ) { // Found an equipment ID tag
-
-    char* indexStartId = strchr(indexEqId, '(');
-    char* indexEndId = strchr(indexEqId, ')');
-
-    if ( indexStartId != NULL && indexEndId != NULL && indexEndId > indexStartId ) { // Found the equipment ID
-      for ( uint16_t i=1; i < indexEndId - indexStartId; i++ ) { // Replace equipment ID with zero's
-        indexStartId[i] = '0';
-      }
-
-    } else {
-      DEBUG_PRINTF(">%s: Parsing equipment ID error\n\r", __FUNCTION__);
-      return false;
-    }
-
-    indexEqId = strstr(indexEndId, ":96.1."); // Find the next equipment identifier
-  }
-
-  return true;
 }
