@@ -400,7 +400,7 @@ Version :      DMK, Initial code
   Serial.printf("\tKey server host   : %s\n", app_config.sec_key_server_host);
   Serial.printf("\tKey server port   : %s\n", app_config.sec_key_server_port);
   Serial.printf("\tClient auth       : %s\n", app_config.sec_authentication);
-  Serial.printf("\tShared key        : %.4s****\n", app_config.sec_shared_key_hex);
+  Serial.printf("\tShared key        : %s\n", (strcmp(app_config.sec_shared_key_hex, "") == 0 ? "Empty" : "Established"));
 
   // Setup mDNS Service
   if ( MDNS.begin("diy_smartmeter") ) { 
