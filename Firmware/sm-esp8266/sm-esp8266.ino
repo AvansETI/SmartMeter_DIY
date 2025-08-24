@@ -111,6 +111,10 @@ typedef struct {
   bool     mqtt_anonimize_p1_bool;
   char     tcp_anonimize_p1[TCP_ANONIMIZE_P1_LENGTH];
   bool     tcp_anonimize_p1_bool;
+  char     sec_authentication[SEC_AUTHENTICATION_LENGTH];
+  bool     sec_authentication_bool;
+  char     sec_shared_key_hex[SEC_SHARED_KEY_HEX_LENGTH];
+  uint8_t  sec_shared_key[32];
 } APP_CONFIG_STRUCT;
 
 APP_CONFIG_STRUCT app_config;
@@ -266,7 +270,17 @@ Version :      DMK, Initial code
     strcpy(app_config.mqtt_remote_host, MQTT_REMOTE_HOST);
     strcpy(app_config.mqtt_remote_port, MQTT_REMOTE_PORT);
     strcpy(app_config.p1_baudrate, "115200");
+    strcpy(app_config.mqtt_anonimize_p1, MQTT_ANONIMIZE_P1);
+    strcpy(app_config.tcp_anonimize_p1, TCP_ANONIMIZE_P1);
+    strcpy(app_config.sec_authentication, SEC_AUTHENTICATION);
+    strcpy(app_config.sec_shared_key_hex, "");    
     writeAppConfig(&app_config);
+  }
+
+  // Load the shared key if it is available
+  if ( app_config.sec_authentication && strcmp(app_config.sec_shared_key_hex, "") != 0 ) {
+    Serial.println("LOAD SHARED KEY YET **********");
+    hexStringToBytes(String(app_config.sec_shared_key_hex), app_config.sec_shared_key, 32);
   }
 
   wifiManager.setMinimumSignalQuality(20);
@@ -296,6 +310,8 @@ Version :      DMK, Initial code
   wifiManager.addParameter(&custom_mqtt_anonymize_p1);
   WiFiManagerParameter custom_tcp_anonymize_p1("tcp_anonymize_p1", "Anonymize your local TCP P1 data", "YES", TCP_ANONIMIZE_P1_LENGTH, "type=\"checkbox\"", WFM_LABEL_AFTER);
   wifiManager.addParameter(&custom_tcp_anonymize_p1);
+  WiFiManagerParameter custom_sec_authentication("sec_authentication", "Enable authentication", "YES", SEC_AUTHENTICATION_LENGTH, "type=\"checkbox\"", WFM_LABEL_AFTER);
+  wifiManager.addParameter(&custom_sec_authentication);
   
   // Add the unit ID to the webpage
   char fd_str[200]="<br/><br/><b>Your DIY SMARTMETER ID:<br/><br/>";
@@ -326,6 +342,8 @@ Version :      DMK, Initial code
     app_config.mqtt_anonimize_p1_bool = (strcmp(app_config.mqtt_anonimize_p1, "YES") == 0 ? true : false);
     strcpy(app_config.tcp_anonimize_p1, (strcmp(custom_tcp_anonymize_p1.getValue(), "YES") == 0 ? "YES" : "NO"));
     app_config.tcp_anonimize_p1_bool = (strcmp(app_config.tcp_anonimize_p1, "YES") == 0 ? true : false);
+    strcpy(app_config.sec_authentication, (strcmp(custom_sec_authentication.getValue(), "YES") == 0 ? "YES" : "NO"));
+    app_config.sec_authentication_bool = (strcmp(app_config.sec_authentication, "YES") == 0 ? true : false);
     writeAppConfig(&app_config);
   }
 
@@ -368,6 +386,10 @@ Version :      DMK, Initial code
   Serial.printf("DSMR settings\n");
   Serial.printf("\tP1 Baudrate       : %s baud\n", app_config.p1_baudrate);
 
+  Serial.printf("SECURITY settings\n");
+  Serial.printf("\tClient auth       : %s\n", app_config.sec_authentication);
+  Serial.printf("\tShared key        : %.4s****\n", app_config.sec_shared_key_hex);
+
   // Setup mDNS Service
   if ( MDNS.begin("diy_smartmeter") ) { 
     MDNS.addService("http", "tcp", WEB_SERVER_PORT);     // Webserver
@@ -388,11 +410,11 @@ Version :      DMK, Initial code
   // Set P1 port baudrate. DSMR V2 uses 9600 baud. Otherwise 115200 baud
   switch(baudrate){
     case 9600:
-      //Serial.begin(9600, SERIAL_7E1);
+      Serial.begin(9600, SERIAL_7E1);
       break;
 
     default:
-      //Serial.begin(115200, SERIAL_8N1);
+      Serial.begin(115200, SERIAL_8N1);
       break;
   }
 
@@ -404,7 +426,7 @@ Version :      DMK, Initial code
   delay(2000);
   
   // Relocate Serial Port
-  //Serial.swap();
+  Serial.swap();
 
 #elif defined(ESP32)
   switch(baudrate){
@@ -439,19 +461,39 @@ Version :      DMK, Initial code
   // Check for IP connection 
   if ( WiFi.status() == WL_CONNECTED) {
 
-    uint8_t sharedKey[32];
+    // If security is enable, create the shared key when it does not exists yet.
+    if ( app_config.sec_authentication && strcmp(app_config.sec_shared_key_hex, "") == 0 ) {
+      ECDHKeyExchange ecdh;
+      uint8_t sharedKey[32];
+      if ( ecdh.executeKeyExchange(sharedKey, app_config.mqtt_id) == SUCCESS ) {
+        strcpy(app_config.sec_shared_key_hex, bytesToHexString(sharedKey, 32, false).c_str());
+        Serial.printf("Shared key created: %s\n", app_config.sec_shared_key_hex);
+        memcpy(app_config.sec_shared_key, sharedKey, 32);
+        writeAppConfig(&app_config);
+      }
+    }  
 
-    ECDHKeyExchange ecdh;
-    ecdh.executeKeyExchange(sharedKey, "THISISMYID_DIYSMARTMETER3");
-
+    /* Just some security testing
+    if ( app_config.sec_authentication && strcmp(app_config.sec_shared_key_hex, "") != 0 ) {
+      String hkey = ECDHKeyExchange::hashKey(app_config.sec_shared_key, 32);
+      String hmac = generateHMAC(hkey + String(p1_buf), app_config.sec_shared_key, 32);
+      String ehmac = ECDHKeyExchange::encryptMessage(app_config.sec_shared_key, hmac);
+      String dhmac = ECDHKeyExchange::decryptMessage(app_config.sec_shared_key, ehmac);
+      Serial.printf("HMAC:  %s\n", hmac.c_str());
+      Serial.printf("EHMAC: %s\n", ehmac.c_str());
+      Serial.printf("DHMAC: %s\n", dhmac.c_str());
+      Serial.printf("HKEY : %s\n", ECDHKeyExchange::hashKey(app_config.sec_shared_key, 32).c_str());
+    }
+    */
+/*
     Serial.println("Start testing the shared key!");
-    printHex(sharedKey, 32);
+    printHex(app_config.sec_shared_key, 32);
     String plain = "Hoi Allemaal!\n";
-    String encrypted = ecdh.encryptMessage(sharedKey, plain);
+    String encrypted = ECDHKeyExchange::encryptMessage(app_config.sec_shared_key, plain);
     Serial.printf("ENC: %s\n", encrypted.c_str());
-    String test = ecdh.decryptMessage(sharedKey, encrypted);
+    String test = ECDHKeyExchange::decryptMessage(app_config.sec_shared_key, encrypted);
     Serial.printf("DEC: %s\n", test.c_str());
-    
+*/
 
     // Handle mqtt, if not MQTT server is available it uses a timer to reconnect every MQTT_RETRY_TIMEOUT ms. 
     // Otherwise, it freezes all other services that are running on the CPU. (#26)
@@ -653,6 +695,10 @@ Version :      DMK, Initial code
              app_config->mqtt_anonimize_p1_bool = (strcmp(app_config->mqtt_anonimize_p1, "YES") == 0 ? true : false);
              strcpy(app_config->tcp_anonimize_p1, doc["tcp_anonimize_p1"]);
              app_config->tcp_anonimize_p1_bool = (strcmp(app_config->tcp_anonimize_p1, "YES") == 0 ? true : false);
+             strcpy(app_config->sec_authentication, doc["sec_authentication"]);
+             app_config->sec_authentication_bool = (strcmp(app_config->sec_authentication, "YES") == 0 ? true : false);
+             strcpy(app_config->sec_shared_key_hex, doc["sec_shared_key_hex"]);
+             hexStringToBytes(String(app_config->sec_shared_key_hex), app_config->sec_shared_key, 32);
              retval = true;
           }
        }
@@ -679,7 +725,6 @@ Version :      DMK, Initial code
 
   deleteAppConfig(); // Delete config file if exists
 
-  //StaticJsonDocument<512> doc; // migration
   JsonDocument doc;
   doc["MQTT_USERNAME"] = app_config->mqtt_username;
   doc["MQTT_PASSWORD"] = app_config->mqtt_password;
@@ -688,6 +733,8 @@ Version :      DMK, Initial code
   doc["P1_BAUDRATE"]= app_config->p1_baudrate;
   doc["mqtt_anonimize_p1"] = app_config->mqtt_anonimize_p1;
   doc["tcp_anonimize_p1"] = app_config->tcp_anonimize_p1;
+  doc["sec_authentication"] = app_config->sec_authentication;
+  doc["sec_shared_key_hex"] = app_config->sec_shared_key_hex;
   
   File configFile = LittleFS.open("/config.json","w+");
   if( configFile ) {
@@ -954,18 +1001,16 @@ void mqtt_heartbeat(void) {
     datagram["p1"]        = p1_buf;
     datagram["signature"] = app_config.mqtt_id;
     datagram["version"]   = VERSION;
+    datagram["authentication"] = app_config.sec_authentication;
 
-    // Currently not used, so delete the objects
-    //JsonObject s0 = datagram["s0"].to<JsonObject>();
-    //s0["unit"] = "W";
-    //s0["label"] = "e-car charger";
-    //s0["value"] = 0;
-    
-    // Currently not used, so delete the objects
-    //JsonObject s1 = datagram["s1"].to<JsonObject>();
-    //s1["unit"] = "W";
-    //s1["label"] = "solar panels";
-    //s1["value"] = 0;
+    // Add security to the datagram, so the server is able to authenticate the client and verify the data
+    if ( app_config.sec_authentication && strcmp(app_config.sec_shared_key_hex, "") != 0 ) {
+      String hkey = ECDHKeyExchange::hashKey(app_config.sec_shared_key, 32);
+      String hmac = generateHMAC(hkey + String(p1_buf), app_config.sec_shared_key, 32);
+      String ehmac = ECDHKeyExchange::encryptMessage(app_config.sec_shared_key, hmac);
+      datagram["hmac"] = hmac.c_str();
+      datagram["ehmac"] = ehmac.c_str();
+    }
     
     String payload = "";
     serializeJson(doc, payload);

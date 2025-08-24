@@ -83,8 +83,8 @@ bool hexStringToBytes(const String& hexString, uint8_t* bytes, size_t expectedLe
     }
     
     if (cleanHex.length() != expectedLength * 2) {
-        Serial.printf("Invalid hex length: expected %u, got %u\n", 
-                     expectedLength * 2, cleanHex.length());
+        //Serial.printf("Invalid hex length: expected %u, got %u\n", 
+        //             expectedLength * 2, cleanHex.length());
         return false;
     }
     
@@ -94,7 +94,7 @@ bool hexStringToBytes(const String& hexString, uint8_t* bytes, size_t expectedLe
         long value = strtol(byteString.c_str(), &endPtr, 16);
         
         if (*endPtr != '\0' || value < 0 || value > 255) {
-            Serial.printf("Invalid hex byte at position %u: %s\n", i, byteString.c_str());
+            //Serial.printf("Invalid hex byte at position %u: %s\n", i, byteString.c_str());
             return false;
         }
         
@@ -235,12 +235,12 @@ public:
         secureWipe();
         
         if (!uECC_make_key(public_key, private_key, curve)) {
-            Serial.println("ERROR: Failed to generate ECDH key pair");
+            //Serial.println("ERROR: Failed to generate ECDH key pair");
             return false;
         }
         
         keys_generated = true;
-        Serial.println("SUCCESS: ECDH key pair generated");
+        //Serial.println("SUCCESS: ECDH key pair generated");
         return true;
     }
     
@@ -261,7 +261,7 @@ public:
         const struct uECC_Curve_t* curve = uECC_secp256r1();
         
         if (!uECC_shared_secret(peer_public, private_key, shared_secret, curve)) {
-            Serial.println("ERROR: Failed to compute shared secret");
+            //Serial.println("ERROR: Failed to compute shared secret");
             return false;
         }
         
@@ -279,7 +279,7 @@ public:
     
     void printPublicKey() const {
         if (!keys_generated) {
-            Serial.println("No key pair generated");
+            //Serial.println("No key pair generated");
             return;
         }
         printHex(public_key, PUBLIC_KEY_SIZE, "Public Key");
@@ -296,21 +296,21 @@ public:
         }
         
         if (!keys_generated) {
-            Serial.println("FATAL: Could not generate key pair after retries");
+            //Serial.println("FATAL: Could not generate key pair after retries");
             return CRYPTO_ERROR;
         }
         
-        printPublicKey();
+        //printPublicKey();
         
         WiFiClient client;
-        Serial.printf("Connecting to %s:%d...\n", SERVER_IP, SERVER_PORT);
+        //Serial.printf("Connecting to %s:%d...\n", SERVER_IP, SERVER_PORT);
         
         if (!client.connect(SERVER_IP, SERVER_PORT)) {
-            Serial.println("ERROR: Connection to server failed");
+            //Serial.println("ERROR: Connection to server failed");
             return CONNECTION_FAILED;
         }
         
-        Serial.println("SUCCESS: Connected to server");
+        //Serial.println("SUCCESS: Connected to server");
         
         // Wait for server's public key with timeout
         unsigned long timeout = millis() + CONNECTION_TIMEOUT;
@@ -319,7 +319,7 @@ public:
         }
         
         if (!client.available()) {
-            Serial.println("ERROR: Timeout waiting for server response");
+            //Serial.println("ERROR: Timeout waiting for server response");
             client.stop();
             return TIMEOUT_ERROR;
         }
@@ -327,13 +327,13 @@ public:
         // Read and parse server response
         String response = client.readStringUntil('\n');
         response.trim();
-        Serial.printf("Server response: %s\n", response.c_str());
+        //Serial.printf("Server response: %s\n", response.c_str());
         
         JsonDocument serverDoc;
         DeserializationError error = deserializeJson(serverDoc, response);
         
         if (error) {
-            Serial.printf("ERROR: JSON parsing failed: %s\n", error.c_str());
+            //Serial.printf("ERROR: JSON parsing failed: %s\n", error.c_str());
             client.stop();
             return JSON_PARSE_ERROR;
         }
@@ -341,7 +341,7 @@ public:
         // Validate and extract server's public key
         if (!serverDoc.containsKey("server_public_x") || 
             !serverDoc.containsKey("server_public_y")) {
-            Serial.println("ERROR: Missing server public key fields");
+            //Serial.println("ERROR: Missing server public key fields");
             client.stop();
             return KEY_PARSE_ERROR;
         }
@@ -352,7 +352,7 @@ public:
         uint8_t server_x[COORDINATE_SIZE], server_y[COORDINATE_SIZE];
         if (!hexStringToBytes(server_x_hex, server_x, COORDINATE_SIZE) || 
             !hexStringToBytes(server_y_hex, server_y, COORDINATE_SIZE)) {
-            Serial.println("ERROR: Failed to parse server public key");
+            //Serial.println("ERROR: Failed to parse server public key");
             client.stop();
             return KEY_PARSE_ERROR;
         }
@@ -377,7 +377,7 @@ public:
         clientMessage += "\n";
         
         client.print(clientMessage);
-        Serial.println("SUCCESS: Sent public key to server");
+        //Serial.println("SUCCESS: Sent public key to server");
         
         // Wait for confirmation
         timeout = millis() + RESPONSE_TIMEOUT;
@@ -386,31 +386,31 @@ public:
         }
         
         if (!client.available()) {
-            Serial.println("ERROR: No confirmation received");
+            //Serial.println("ERROR: No confirmation received");
             client.stop();
             return NO_CONFIRMATION;
         }
         
         String confirmation = client.readStringUntil('\n');
         confirmation.trim();
-        Serial.printf("Server confirmation: %s\n", confirmation.c_str());
+        //Serial.printf("Server confirmation: %s\n", confirmation.c_str());
         
         JsonDocument confirmDoc;
         if (deserializeJson(confirmDoc, confirmation) != DeserializationError::Ok) {
-            Serial.println("ERROR: Failed to parse confirmation");
+            //Serial.println("ERROR: Failed to parse confirmation");
             client.stop();
             return JSON_PARSE_ERROR;
         }
         
         if (confirmDoc["status"] != "success") {
-            Serial.println("ERROR: Key exchange failed");
+            //Serial.println("ERROR: Key exchange failed");
             client.stop();
             return EXCHANGE_FAILED;
         }
         
         // Derive and verify encryption key
         deriveEncryptionKey(encryption_key);
-        printHex(encryption_key, KEY_SIZE, "Derived encryption key");
+        //printHex(encryption_key, KEY_SIZE, "Derived encryption key");
         
         // Verify key hash if provided
         if (confirmDoc.containsKey("key_hash")) {
@@ -424,24 +424,35 @@ public:
             String our_hash = bytesToHexString(hash, 8, false); // First 8 bytes
             
             if (!our_hash.equalsIgnoreCase(server_hash)) {
-                Serial.println("ERROR: Key verification failed");
+                //Serial.println("ERROR: Key verification failed");
                 client.stop();
                 return KEY_VERIFICATION_ERROR;
             }
             
-            Serial.println("SUCCESS: Key verification passed");
+            //Serial.println("SUCCESS: Key verification passed");
         } else {
-            Serial.println("ERROR: Key verification failed hash not provided");
+            //Serial.println("ERROR: Key verification failed hash not provided");
             client.stop();
             return KEY_VERIFICATION_ERROR;
         }
         
         client.stop();
-        Serial.println("=== ECDH KEY EXCHANGE COMPLETED SUCCESSFULLY ===");
+        //Serial.println("=== ECDH KEY EXCHANGE COMPLETED SUCCESSFULLY ===");
         return SUCCESS;
     }
     
-    String encryptMessage(const uint8_t* sharedKey, const String& plaintext) {
+    static String hashKey (uint8_t key[32], uint8_t s) {
+        SHA256 sha256;
+        sha256.update(key, 32);
+        uint8_t hash[32];
+        sha256.finalize(hash, 32);
+
+        String h = bytesToHexString(hash, 32, false);
+        
+        return h;
+    }
+    
+    static String encryptMessage(const uint8_t* sharedKey, const String& plaintext) {
         if (!sharedKey || plaintext.length() == 0) return "";
         
         // Generate cryptographically strong IV
@@ -478,12 +489,12 @@ public:
         
         // Combine IV + ciphertext
         String result = bytesToHexString(iv, IV_SIZE, false) + 
-                       bytesToHexString(ciphertext, paddedLen, false);
+                        bytesToHexString(ciphertext, paddedLen, false);
         
         return result;
     }
     
-    String decryptMessage(const uint8_t* sharedKey, const String& encryptedData) {
+    static String decryptMessage(const uint8_t* sharedKey, const String& encryptedData) {
         if (!sharedKey || encryptedData.length() < IV_SIZE * 2) return "";
         
         // Extract IV and ciphertext

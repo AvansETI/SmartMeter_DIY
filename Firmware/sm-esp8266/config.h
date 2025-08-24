@@ -35,7 +35,6 @@
 #define MQTT_TOPIC_UPDATE_RATE_MS 20000 // Minimun delay between mqtt publish events. Prevents mqtt spam e.g. DSMR 5.0 updates every second!
 #define MQTT_ANONIMIZE_P1         "YES" // YES/NO, default YES while this data is going to an external server
 
-
 // MQTT client configuration
 #define P1_TELEGRAM_SIZE           2048
 #define P1_MAX_DATAGRAM_SIZE       2048
@@ -51,3 +50,6 @@
 // Local services configuration
 #define TCP_ANONIMIZE_P1            "NO"    // YES/NO, default NO while this data stays in the local network
 #define TCP_ANONIMIZE_P1_LENGTH     32
+#define SEC_AUTHENTICATION          "YES"   // YES/NO, default YES client authication
+#define SEC_AUTHENTICATION_LENGTH    32
+#define SEC_SHARED_KEY_HEX_LENGTH   128
