@@ -384,29 +384,31 @@ public:
         String combined = ivHex + cipherHex;
         
         // Generate HMAC for authentication
-        String hmac = generateHMAC(combined, sharedKey);
+        //String hmac = generateHMAC(combined, sharedKey);
         
         // Cleanup
         delete[] paddedText;
         delete[] ciphertext;
         
         // Return format: HMAC:IV:CIPHERTEXT
-        return hmac + ":" + combined;
+        //return hmac + ":" + combined;
+        return combined;
     }
 
     String decryptMessage(uint8_t sharedKey[32], String encryptedData) {
         // Parse format: HMAC:IV:CIPHERTEXT
-        int firstColon = encryptedData.indexOf(':');
-        if (firstColon == -1) return "";
+        // Parse format: IV:CIPHERTEXT
+        //int firstColon = encryptedData.indexOf(':');
+        //if (firstColon == -1) return "";
         
-        String receivedHMAC = encryptedData.substring(0, firstColon);
-        String combined = encryptedData.substring(firstColon + 1);
+        //String receivedHMAC = encryptedData.substring(0, firstColon);
+        String combined = encryptedData;
         
         // Verify HMAC
-        if (!verifyHMAC(combined, receivedHMAC, sharedKey)) {
-            Serial.println("HMAC verification failed!");
-            return "";
-        }
+        //if (!verifyHMAC(combined, receivedHMAC, sharedKey)) {
+        //    Serial.println("HMAC verification failed!");
+        //    return "";
+        //}
         
         // Extract IV and ciphertext
         if (combined.length() < 32) return ""; // At least 16 bytes IV
