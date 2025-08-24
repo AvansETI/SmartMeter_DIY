@@ -91,6 +91,7 @@ class ECDHKeyExchangeServer:
             f = open('vault.dat', 'rt', encoding='utf-8')
             for line in f:   ## iterates over the lines of the file
                 if ( len(r) == 2 ):
+                    print(f"Read key of id {r[0]}")
                     r = line.split(":=")
                     self.key_vault[r[0]] = r[1]
                 else:
