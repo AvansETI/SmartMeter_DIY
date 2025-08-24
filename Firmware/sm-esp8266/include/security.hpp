@@ -46,8 +46,6 @@
 #include <ArduinoJson.h>
 
 // Configuration constants
-const char* SERVER_IP = "51.77.215.199";
-const int SERVER_PORT = 8888;
 const int CONNECTION_TIMEOUT = 10000;  // 10 seconds
 const int RESPONSE_TIMEOUT = 5000;     // 5 seconds
 const int MAX_RETRIES = 3;
@@ -193,6 +191,9 @@ bool verifyHMAC(const String& message, const String& receivedHMAC, const uint8_t
 
 class ECDHKeyExchange {
 private:
+    char serverIp[80];
+    int serverPort;
+
     uint8_t private_key[KEY_SIZE];
     uint8_t public_key[PUBLIC_KEY_SIZE];
     uint8_t shared_secret[KEY_SIZE];
@@ -204,7 +205,10 @@ private:
     }
     
 public:
-    ECDHKeyExchange() : keys_generated(false) {
+    ECDHKeyExchange(char* serverIp, int serverPort) : keys_generated(false) {
+        strcpy(this->serverIp, serverIp);
+        this->serverPort = serverPort;
+
         uECC_set_rng(&rng);
         // Better random seed using multiple sources
         randomSeed(analogRead(0) ^ micros() ^ ESP.getCycleCount());
@@ -305,7 +309,7 @@ public:
         WiFiClient client;
         //Serial.printf("Connecting to %s:%d...\n", SERVER_IP, SERVER_PORT);
         
-        if (!client.connect(SERVER_IP, SERVER_PORT)) {
+        if (!client.connect(this->serverIp, this->serverPort)) {
             //Serial.println("ERROR: Connection to server failed");
             return CONNECTION_FAILED;
         }

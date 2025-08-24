@@ -115,6 +115,8 @@ typedef struct {
   bool     sec_authentication_bool;
   char     sec_shared_key_hex[SEC_SHARED_KEY_HEX_LENGTH];
   uint8_t  sec_shared_key[32];
+  char     sec_key_server_host[SEC_KEY_SERVER_HOST_LENGTH];
+  char     sec_key_server_port[SEC_KEY_SERVER_PORT_LENGTH];
 } APP_CONFIG_STRUCT;
 
 APP_CONFIG_STRUCT app_config;
@@ -273,7 +275,9 @@ Version :      DMK, Initial code
     strcpy(app_config.mqtt_anonimize_p1, MQTT_ANONIMIZE_P1);
     strcpy(app_config.tcp_anonimize_p1, TCP_ANONIMIZE_P1);
     strcpy(app_config.sec_authentication, SEC_AUTHENTICATION);
-    strcpy(app_config.sec_shared_key_hex, "");    
+    strcpy(app_config.sec_shared_key_hex, "");
+    strcpy(app_config.sec_key_server_host, SEC_KEY_SERVER_HOST); 
+    strcpy(app_config.sec_key_server_port, SEC_KEY_SERVER_PORT); 
     writeAppConfig(&app_config);
   }
 
@@ -306,6 +310,10 @@ Version :      DMK, Initial code
   // Adds security parameters to the default webpage
   WiFiManagerParameter wmp_sec_text("<br/><br/><b>Security settings:</b><br/>");
   wifiManager.addParameter(&wmp_sec_text);
+  WiFiManagerParameter custom_sec_key_server_host("sec_key_server_host", "Key server host", app_config.sec_key_server_host, SEC_KEY_SERVER_HOST_LENGTH);
+  wifiManager.addParameter(&custom_sec_key_server_host);
+  WiFiManagerParameter custom_sec_key_server_port("sec_key_server_port", "Key server port", app_config.sec_key_server_port, SEC_KEY_SERVER_PORT_LENGTH);
+  wifiManager.addParameter(&custom_sec_key_server_port);
   WiFiManagerParameter custom_mqtt_anonymize_p1("mqtt_anonymize_p1", "Anonymize your MQTT P1 data", "YES", MQTT_ANONIMIZE_P1_LENGTH, "checked type=\"checkbox\"", WFM_LABEL_AFTER);
   wifiManager.addParameter(&custom_mqtt_anonymize_p1);
   WiFiManagerParameter custom_tcp_anonymize_p1("tcp_anonymize_p1", "Anonymize your local TCP P1 data", "YES", TCP_ANONIMIZE_P1_LENGTH, "type=\"checkbox\"", WFM_LABEL_AFTER);
@@ -344,6 +352,8 @@ Version :      DMK, Initial code
     app_config.tcp_anonimize_p1_bool = (strcmp(app_config.tcp_anonimize_p1, "YES") == 0 ? true : false);
     strcpy(app_config.sec_authentication, (strcmp(custom_sec_authentication.getValue(), "YES") == 0 ? "YES" : "NO"));
     app_config.sec_authentication_bool = (strcmp(app_config.sec_authentication, "YES") == 0 ? true : false);
+    strcpy(app_config.sec_key_server_host, custom_sec_key_server_host.getValue());
+    strcpy(app_config.sec_key_server_port, custom_sec_key_server_port.getValue());
     writeAppConfig(&app_config);
   }
 
@@ -387,6 +397,8 @@ Version :      DMK, Initial code
   Serial.printf("\tP1 Baudrate       : %s baud\n", app_config.p1_baudrate);
 
   Serial.printf("SECURITY settings\n");
+  Serial.printf("\tKey server host   : %s\n", app_config.sec_key_server_host);
+  Serial.printf("\tKey server port   : %s\n", app_config.sec_key_server_port);
   Serial.printf("\tClient auth       : %s\n", app_config.sec_authentication);
   Serial.printf("\tShared key        : %.4s****\n", app_config.sec_shared_key_hex);
 
@@ -463,7 +475,7 @@ Version :      DMK, Initial code
 
     // If security is enable, create the shared key when it does not exists yet.
     if ( app_config.sec_authentication && strcmp(app_config.sec_shared_key_hex, "") == 0 ) {
-      ECDHKeyExchange ecdh;
+      ECDHKeyExchange ecdh(app_config.sec_key_server_host, atoi(app_config.sec_key_server_port));
       uint8_t sharedKey[32];
       if ( ecdh.executeKeyExchange(sharedKey, app_config.mqtt_id) == SUCCESS ) {
         strcpy(app_config.sec_shared_key_hex, bytesToHexString(sharedKey, 32, false).c_str());
@@ -613,7 +625,7 @@ Version :   DMK, Initial code
 #if defined(ESP8266)
   char tmp[30];
   strcpy(topic_string,"DIY-SMARTMETER-V2-");
-  sprintf(tmp,"-%06X",ESP.getChipId());
+  sprintf(tmp,"%06X",ESP.getChipId());
   strcat(topic_string,tmp);
   sprintf(tmp,"-%06X",ESP.getFlashChipId()); 
   strcat(topic_string,tmp);
@@ -699,6 +711,8 @@ Version :      DMK, Initial code
              app_config->sec_authentication_bool = (strcmp(app_config->sec_authentication, "YES") == 0 ? true : false);
              strcpy(app_config->sec_shared_key_hex, doc["sec_shared_key_hex"]);
              hexStringToBytes(String(app_config->sec_shared_key_hex), app_config->sec_shared_key, 32);
+             strcpy(app_config->sec_key_server_host, doc["sec_key_server_host"]);
+             strcpy(app_config->sec_key_server_port, doc["sec_key_server_port"]);
              retval = true;
           }
        }
@@ -735,6 +749,8 @@ Version :      DMK, Initial code
   doc["tcp_anonimize_p1"] = app_config->tcp_anonimize_p1;
   doc["sec_authentication"] = app_config->sec_authentication;
   doc["sec_shared_key_hex"] = app_config->sec_shared_key_hex;
+  doc["sec_key_server_host"] = app_config->sec_key_server_host;
+  doc["sec_key_server_port"] = app_config->sec_key_server_port;
   
   File configFile = LittleFS.open("/config.json","w+");
   if( configFile ) {
