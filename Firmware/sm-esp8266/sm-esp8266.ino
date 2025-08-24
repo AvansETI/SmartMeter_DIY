@@ -78,6 +78,7 @@
 #include "include/hardware.hpp"
 #include "include/dashboard.hpp"
 #include "include/p1dataserver.hpp"
+#include "include/security.hpp"
 
 #define DEBUG
 
@@ -387,11 +388,11 @@ Version :      DMK, Initial code
   // Set P1 port baudrate. DSMR V2 uses 9600 baud. Otherwise 115200 baud
   switch(baudrate){
     case 9600:
-      Serial.begin(9600, SERIAL_7E1);
+      //Serial.begin(9600, SERIAL_7E1);
       break;
 
     default:
-      Serial.begin(115200, SERIAL_8N1);
+      //Serial.begin(115200, SERIAL_8N1);
       break;
   }
 
@@ -403,7 +404,7 @@ Version :      DMK, Initial code
   delay(2000);
   
   // Relocate Serial Port
-  Serial.swap();
+  //Serial.swap();
 
 #elif defined(ESP32)
   switch(baudrate){
@@ -436,7 +437,22 @@ Version :      DMK, Initial code
 *******************************************************************/
 {
   // Check for IP connection 
-  if( WiFi.status() == WL_CONNECTED) {
+  if ( WiFi.status() == WL_CONNECTED) {
+
+    uint8_t sharedKey[32];
+
+    ECDHKeyExchange ecdh;
+    ecdh.executeKeyExchange(sharedKey);
+
+    Serial.println("Start testing the shared key!");
+    printHex(sharedKey, 32);
+    String plain = "Hoi Allemaal!\n";
+    String encrypted = ecdh.encryptMessage(sharedKey, plain);
+    Serial.printf("ENC: %s\n", encrypted.c_str());
+    String test = ecdh.decryptMessage(sharedKey, encrypted);
+    Serial.printf("DEC: %s\n", test.c_str());
+    
+
     // Handle mqtt, if not MQTT server is available it uses a timer to reconnect every MQTT_RETRY_TIMEOUT ms. 
     // Otherwise, it freezes all other services that are running on the CPU. (#26)
     if( !mqttClient.connected() && ( mqttTimer == 0 || millis() > mqttTimer + MQTT_RETRY_TIMEOUT ) ) {
