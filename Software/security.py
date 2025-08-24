@@ -104,8 +104,7 @@ class ECDHKeyExchangeServer:
         try:
             f = open('vault.dat', 'wt', encoding='utf-8')
             for id in self.key_vault:
-                print(f"{id}={self.key_vault[id]}\n")
-                f.write(f"{id}={self.key_vault[id]}\n")
+                f.write(f"{id}:={self.key_vault[id]}\n")
             f.close()
         except:
             print("Could not read the key vault\n")
@@ -185,8 +184,10 @@ class ECDHKeyExchangeServer:
             # Save shared key
             if ( id not in self.key_vault ):
                 self.key_vault[id] = hex(shared_key)
+                self.write_vault()
+                print("Successfully saved shared key!")
             else:
-                print("ID already found, so key is not accepted!")
+                print("ID already stored, key not accepted!")
             
         except json.JSONDecodeError as e:
             print(f"JSON decode error from {address}: {e}")
