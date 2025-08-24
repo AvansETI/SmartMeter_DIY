@@ -183,7 +183,7 @@ class ECDHKeyExchangeServer:
 
             # Save shared key
             if ( id not in self.key_vault ):
-                self.key_vault[id] = hex(shared_key)
+                self.key_vault[id] = shared_key.hex()
                 self.write_vault()
                 print("Successfully saved shared key!")
             else:
