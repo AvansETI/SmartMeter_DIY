@@ -45,7 +45,7 @@ class ECDHKeyExchange:
         self.public_key = None
         self.shared_secret = None
         self.curve = ec.SECP256R1()  # P-256 curve
-        
+      
     def generate_keypair(self):
         """Generate ECDH private and public key pair"""
         self.private_key = ec.generate_private_key(self.curve, default_backend())
@@ -82,6 +82,33 @@ class ECDHKeyExchangeServer:
         self.port = port
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.key_vault = {} # Store the keys with key as ID and value as key
+        self.read_vault()
+        
+    def read_vault(self):
+        self.key_vault = {}
+        try:
+            f = open('vault.dat', 'rt', encoding='utf-8')
+            for line in f:   ## iterates over the lines of the file
+                if ( len(r) == 2 ):
+                    r = line.split(":=")
+                    self.key_vault[r[0]] = r[1]
+                else:
+                    print("Parsing error '{line}\n")
+            f.close()
+        except:
+            print("Could not read the key vault, so creating new one.\n")
+            self.write_vault()
+
+    def write_vault(self):
+        try:
+            f = open('vault.dat', 'wt', encoding='utf-8')
+            for id in self.key_vault:
+                print(f"{id}={self.key_vault[id]}\n")
+                f.write(f"{id}={self.key_vault[id]}\n")
+            f.close()
+        except:
+            print("Could not read the key vault\n")
 
     def start(self):
         """Start the server"""
@@ -156,6 +183,10 @@ class ECDHKeyExchangeServer:
             print("-" * 60)
 
             # Save shared key
+            if ( id not in self.key_vault ):
+                self.key_vault[id] = hex(shared_key)
+            else:
+                print("ID already found, so key is not accepted!")
             
         except json.JSONDecodeError as e:
             print(f"JSON decode error from {address}: {e}")
