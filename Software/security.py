@@ -180,7 +180,6 @@ class ECDHKeyExchangeServer:
             print(f"ECDH key exchange completed with {address}")
             print(f"Shared key hash: {confirmation['key_hash']}")
             print(f"Full shared key (32 bytes): {shared_key.hex()}")
-            print("-" * 60)
 
             # Save shared key
             if ( id not in self.key_vault ):
@@ -189,6 +188,8 @@ class ECDHKeyExchangeServer:
                 print("Successfully saved shared key!")
             else:
                 print("ID already stored, key not accepted!")
+            
+            print("-" * 60)
             
         except json.JSONDecodeError as e:
             print(f"JSON decode error from {address}: {e}")
