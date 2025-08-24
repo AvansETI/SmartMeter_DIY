@@ -442,7 +442,7 @@ Version :      DMK, Initial code
     uint8_t sharedKey[32];
 
     ECDHKeyExchange ecdh;
-    ecdh.executeKeyExchange(sharedKey, "THISISMYID_DIYSMARTMETER");
+    ecdh.executeKeyExchange(sharedKey, "THISISMYID_DIYSMARTMETER2");
 
     Serial.println("Start testing the shared key!");
     printHex(sharedKey, 32);

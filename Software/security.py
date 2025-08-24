@@ -95,20 +95,20 @@ class ECDHKeyExchangeServer:
                     print(f"Read key of id {r[0]}")
                     self.key_vault[r[0]] = r[1]
                 else:
-                    print("Parsing error '{line}\n")
+                    print("Parsing error '{line}")
             f.close()
         except:
-            print("Could not read the key vault, so creating new one.\n")
+            print("Could not read the key vault, so creating new one.")
             self.write_vault()
 
     def write_vault(self):
         try:
             f = open('vault.dat', 'wt', encoding='utf-8')
             for id in self.key_vault:
-                f.write(f"{id}:={self.key_vault[id]}\n")
+                f.write(f"{id}:={self.key_vault[id]}")
             f.close()
         except:
-            print("Could not read the key vault\n")
+            print("Could not read the key vault")
 
     def start(self):
         """Start the server"""
