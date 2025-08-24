@@ -1,4 +1,35 @@
 #!/usr/bin/env python3
+#-------------------------------------------------------------------------
+#  The MIT License (MIT)
+#  Copyright © 2025 Avans Hogeschool Lectoraat Smart Energy
+#  
+#  Permission is hereby granted, free of charge, to any person obtaining a 
+#  copy of this software and associated documentation files (the “Software”), 
+#  to deal in the Software without restriction, including without limitation 
+#  the rights to use, copy, modify, merge, publish, distribute, sublicense, 
+#  and/or sell copies of the Software, and to permit persons to whom the 
+#  Software is furnished to do so, subject to the following conditions:
+#
+#  The above copyright notice and this permission notice shall be included in 
+#  all copies or substantial portions of the Software.
+#
+#  THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR 
+#  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
+#  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL 
+#  THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER 
+#  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, 
+#  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN 
+#  THE SOFTWARE.
+#
+#  -------------------------------------------------------------------------
+#
+#  This software is part of the DIY SMARTMETER project. It is developed to enable
+#  security for the project. It implements a key exchange server that the firmware
+#  uses to execute key exchange if required to get a shared key on both the ESP
+#  and the server. When the shared key has been exchanged, encryption and/or message
+#  validity can be done.
+#
+#  -------------------------------------------------------------------------
 import socket
 import hashlib
 import secrets
@@ -103,8 +134,9 @@ class ECDHKeyExchangeServer:
             client_data = json.loads(response)
             client_public_x = int(client_data['client_public_x'], 16)
             client_public_y = int(client_data['client_public_y'], 16)
+            id              = str(client_data['id'])
             
-            print(f"Received client public key from {address}")
+            print(f"Received client public key from {address} with id {id}")
             
             # Compute shared secret
             shared_key = ecdh.compute_shared_secret(client_public_x, client_public_y)
@@ -122,6 +154,8 @@ class ECDHKeyExchangeServer:
             print(f"Shared key hash: {confirmation['key_hash']}")
             print(f"Full shared key (32 bytes): {shared_key.hex()}")
             print("-" * 60)
+
+            # Save shared key
             
         except json.JSONDecodeError as e:
             print(f"JSON decode error from {address}: {e}")
