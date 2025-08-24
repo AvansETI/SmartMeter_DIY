@@ -636,7 +636,7 @@ Version :   DMK, Initial code
 #if defined(ESP8266)
    char tmp[30];
    strcpy(signature,"DIY-SMARTMETER-V2-");
-   sprintf(tmp,"-%06X",ESP.getChipId());
+   sprintf(tmp,"%06X",ESP.getChipId());
    strcat(signature,tmp);
    sprintf(tmp,"-%06X",ESP.getFlashChipId()); 
    strcat(signature,tmp);
