@@ -90,7 +90,7 @@ class ECDHKeyExchangeServer:
         try:
             f = open('vault.dat', 'rt', encoding='utf-8')
             for line in f:   ## iterates over the lines of the file
-                r = line.split(":=")
+                r = line.rstrip().split(":=")
                 if ( len(r) == 2 ):
                     print(f"Read key of id {r[0]}")
                     self.key_vault[r[0]] = r[1]
@@ -105,7 +105,7 @@ class ECDHKeyExchangeServer:
         try:
             f = open('vault.dat', 'wt', encoding='utf-8')
             for id in self.key_vault:
-                f.write(f"{id}:={self.key_vault[id]}")
+                f.write(f"{id}:={self.key_vault[id]}\n")
             f.close()
         except:
             print("Could not read the key vault")
