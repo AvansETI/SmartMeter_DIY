@@ -383,6 +383,7 @@ Version :      DMK, Initial code
   Serial.printf("\tLast reset         : %s\n", resetReason );
 #endif
 
+  Serial.printf("\tFirmware version   : %s\n", VERSION);
   Serial.printf("MQTT settings\n");
   Serial.printf("\tmqtt_username     : %s\n", app_config.mqtt_username);
   Serial.printf("\tmqtt_password     : %s\n", app_config.mqtt_password);
@@ -1007,7 +1008,7 @@ void mqtt_heartbeat(void) {
     }
 
     //
-    mqtt_throttle_prev = mqtt_throttle_cur; 
+    mqtt_throttle_prev = mqtt_throttle_cur;
   
     // Construct json object and publish
     JsonDocument doc;
