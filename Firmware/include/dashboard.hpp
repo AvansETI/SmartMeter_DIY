@@ -58,8 +58,9 @@ const char rootHtml[] PROGMEM = R"(
   <title>DIY SmartMeter Dashboard</title>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-  <link href="https://raw.githubusercontent.com/AvansETI/SmartMeter_DIY/refs/heads/38-security/Firmware/web/dashboard-v2.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/gh/AvansETI/SmartMeter_DIY@refs/heads/38-security/Firmware/web/dashboard-v2.css" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.js"></script>
 </head>
 <body>
   <script>
