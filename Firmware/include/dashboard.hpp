@@ -67,10 +67,10 @@ private:
   char DSMRTimestamp[14];
   float actualPowerConsumption[WEB_SERVER_DATA_LENGTH];  // Actual power consumption kW
   float actualPowerProduction[WEB_SERVER_DATA_LENGTH];  // Actual power production kW
-  float energyConsumption1[WEB_SERVER_DATA_LENGTH]; // Energy consumption 1 kWh
-  float energyConsumption2[WEB_SERVER_DATA_LENGTH]; // Energy consumption 2 kWh
-  float energyProduction1[WEB_SERVER_DATA_LENGTH]; // Energy production 1 kWh
-  float energyProduction2[WEB_SERVER_DATA_LENGTH]; // Energy production 1 kWh
+  float energyConsumption1[WEB_SERVER_DATA_LENGTH]; // Actual energy consumption 1 kWh
+  float energyConsumption2[WEB_SERVER_DATA_LENGTH]; // Actual energy consumption 2 kWh
+  float energyProduction1[WEB_SERVER_DATA_LENGTH]; // Actual energy production 1 kWh
+  float energyProduction2[WEB_SERVER_DATA_LENGTH]; // Actual energy production 1 kWh
 
 public:
 
@@ -109,10 +109,17 @@ public:
   outputs: 
   notes:         
   Version: MS, Initial code
+           Add new data api's to the webserver to serve firmware/SmartMeter 
+           DIY information (info), actual power/energy (actual), power 
+           history (power), energy history (energy)
   *******************************************************************/
   {
     this->server.on("/", std::bind(&Dashboard::handleRoot, this));               // Call the 'handleRoot' function when a client requests URI "/"
     this->server.on("/data", std::bind(&Dashboard::handleDataApi, this));        // Call the 'handleDataApi' function when a client requests URI "/data"
+    this->server.on("/info", std::bind(&Dashboard::handleInfoApi, this));
+    this->server.on("/actual", std::bind(&Dashboard::handleActualApi, this));
+    this->server.on("/power", std::bind(&Dashboard::handlePowerApi, this));
+    this->server.on("/energy", std::bind(&Dashboard::handleEnergyApi, this));
     this->server.onNotFound(std::bind(&Dashboard::handleNotFound, this));        // When a client requests an unknown URI (i.e. something other than "/"), call function "handleNotFound"
     this->server.begin(); // Actually start the server
   }
@@ -172,6 +179,13 @@ $.ajax({
     server.send(200, "text/html", rootHtml);
   }
 
+  void sendJSON(const char* data) {
+    server.sendHeader("Access-Control-Allow-Origin", "*");
+    server.sendHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");  
+    server.sendHeader("Access-Control-Allow-Headers", "Content-Type");
+    server.send(200, "text/json", data);
+  }
+
   /******************************************************************/
   void handleDataApi()
   /* 
@@ -209,7 +223,86 @@ $.ajax({
     dataJson = dataJson + energyProduction2[this->dataPointer-1] + "],\"DSMRVersion\":\"" + DSMRVersion +
               "\",\"DSMRTimestamp\":\"" + DSMRTimestamp + "\"}\n";
 
+    sendJSON(dataJson.c_str());
+  }
+
+  /******************************************************************/
+  void handleActualApi()
+  /* 
+  short:   Returns a JSON with the data that is collected.
+  inputs:        
+  outputs: 
+  notes:         
+  Version: MS, Initial code
+  *******************************************************************/
+  {
+    String dataJson = "";
     server.send(200, "text/json", dataJson);
+  }
+
+  /******************************************************************/
+  void handlePowerApi()
+  /* 
+  short:   Returns a JSON with the data that is collected.
+  inputs:        
+  outputs: 
+  notes:         
+  Version: MS, Initial code
+  *******************************************************************/
+  {
+    String dataJson = "";
+    server.send(200, "text/json", dataJson);
+  }
+
+  /******************************************************************/
+  void handleEnergyApi()
+  /* 
+  short:   Returns a JSON with the data that is collected.
+  inputs:        
+  outputs: 
+  notes:         
+  Version: MS, Initial code
+  *******************************************************************/
+  {
+    String dataJson = "";
+    server.send(200, "text/json", dataJson);
+  }
+
+  /******************************************************************/
+  void handleInfoApi()
+  /* 
+  short:   Returns a JSON with the data that is collected.
+  inputs:        
+  outputs: 
+  notes:         
+  Version: MS, Initial code
+  *******************************************************************/
+  {
+    char json[1024] = "";
+#if defined(ESP8266)
+    int offset = sprintf(json, "{\"hardware\": \"ESP8266\n,");
+    offset    += sprintf(json,  "\"sdk\":\"%s\",", ESP.getSdkVersion());
+    offset    += sprintf(json,  "\"core\":\"%s\",", ESP.getCoreVersion().c_str());
+    offset    += sprintf(json,  "\"freq\":\"%d\",", ESP.getCpuFreqMHz());
+    offset    += sprintf(json,  "\"reset\":\"%s\",", ESP.getResetReason().c_str());
+
+#elif defined(ESP32)
+    char resetReason[20];
+    getResetReason(resetReason);
+    int offset = sprintf(json, "{\"hardware\": \"ESP32S2\n,");
+    offset    += sprintf(json,   "\"sdk\":\"%s\",", ESP.getSdkVersion());
+    offset    += sprintf(json,   "\"core\":\"%s\",", ESP.getCoreVersion());
+    offset    += sprintf(json,   "\"freq\":\"%ld\",", ESP.getCpuFreqMHz());
+    offset    += sprintf(json,  "\"reset\":\"%s\",", resetReason);
+#endif
+    offset    += sprintf(json,   "\"online\":\"%s\",", "YES"); // @TODO
+    offset    += sprintf(json,   "\"ip\":\"%s\",", WiFi.localIP().toString().c_str());
+    offset    += sprintf(json,   "\"mqtt_anon\":\"%s\",", app_config.mqtt_anonimize_p1);
+    offset    += sprintf(json,   "\"dsmr_baud\":\"%s\",", app_config.p1_baudrate);
+    offset    += sprintf(json,   "\"client_auth\":\"%s\",", app_config.sec_authentication);
+    offset    += sprintf(json,   "\"tcp_anon\":\"%s\"}", app_config.tcp_anonimize_p1);
+
+    server.send(200, "text/json", json);
   }
 
   /******************************************************************/

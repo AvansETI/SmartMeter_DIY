@@ -57,3 +57,26 @@
 #define SEC_SHARED_KEY_HEX_LENGTH   128
 #define SEC_KEY_SERVER_HOST_LENGTH  128
 #define SEC_KEY_SERVER_PORT_LENGTH  8
+
+// Configuration variable structure that is saved in flash
+typedef struct {
+  char     mqtt_username[MQTT_USERNAME_LENGTH];
+  char     mqtt_password[MQTT_PASSWORD_LENGTH];
+  char     mqtt_id[MQTT_ID_TOKEN_LENGTH];
+  char     mqtt_topic[MQTT_TOPIC_STRING_LENGTH];
+  char     mqtt_remote_host[MQTT_REMOTE_HOST_LENGTH];
+  char     mqtt_remote_port[MQTT_REMOTE_PORT_LENGTH];
+  char     p1_baudrate[P1_BAUDRATE_LENGTH];
+  char     mqtt_anonimize_p1[MQTT_ANONIMIZE_P1_LENGTH];
+  bool     mqtt_anonimize_p1_bool;
+  char     tcp_anonimize_p1[TCP_ANONIMIZE_P1_LENGTH];
+  bool     tcp_anonimize_p1_bool;
+  char     sec_authentication[SEC_AUTHENTICATION_LENGTH];
+  bool     sec_authentication_bool;
+  char     sec_shared_key_hex[SEC_SHARED_KEY_HEX_LENGTH];
+  uint8_t  sec_shared_key[32];
+  char     sec_key_server_host[SEC_KEY_SERVER_HOST_LENGTH];
+  char     sec_key_server_port[SEC_KEY_SERVER_PORT_LENGTH];
+} APP_CONFIG_STRUCT;
+
+static APP_CONFIG_STRUCT app_config;
