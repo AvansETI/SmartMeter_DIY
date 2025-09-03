@@ -48,22 +48,24 @@
 #include <WebServer.h>
 #endif
 
-const char rootHtml[] = R"(
+const char rootHtml[] PROGMEM = R"(
 <!doctype html>
 <html lang="en" data-bs-theme="dark">
 <html>
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <meta name="viewport" content="width=device-width,initial-scale=1,shrink-to-fit=no">
   <title>DIY SmartMeter Dashboard</title>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <link href="https://raw.githubusercontent.com/AvansETI/SmartMeter_DIY/refs/heads/38-security/Firmware/web/dashboard-v2.css" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
 </head>
 <body>
   <script>
 $(document).ready(function(){
 $.ajax({
-    url: "https://raw.githubusercontent.com/AvansETI/SmartMeter_DIY/refs/heads/master/Firmware/sm-esp8266/web/body.html",
+    url: "https://raw.githubusercontent.com/AvansETI/SmartMeter_DIY/refs/heads/38-security/Firmware/web/dashboard-v2.html",
     success: function (data) { $('body').append(data); },
     dataType: 'html'
 });
