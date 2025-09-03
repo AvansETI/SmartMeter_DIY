@@ -340,60 +340,62 @@ Version :      DMK, Initial code
 
   // Always print config to terminal before swapping serial port
 #if defined(ESP8266)
-  Serial.printf("\n");
-  Serial.printf("************ DIY Smartmeter ********************\n");
-  Serial.printf("ESP8266 info\n");
-  Serial.printf("\tSDK Version       : %s\n", ESP.getSdkVersion() );
-  Serial.printf("\tCore Version      : %s\n", ESP.getCoreVersion().c_str() );
-  Serial.printf("\tCore Frequency    : %d Mhz\n", ESP.getCpuFreqMHz());
-  Serial.printf("\tLast reset        : %s\n", ESP.getResetReason().c_str() );
+  Serial.println();
+  Serial.print(F("************ DIY Smartmeter ********************\n"));
+  Serial.print(F("ESP8266 info\n"));
+  Serial.print(F("\tSDK Version       : ")); Serial.println(ESP.getSdkVersion()); 
+  Serial.print(F("\tCore Version      : ")); Serial.println(ESP.getCoreVersion().c_str());
+  Serial.print(F("\tCore Frequency    : ")); Serial.printf("%d", ESP.getCpuFreqMHz()); Serial.println(F(" Mhz"));
+  Serial.print(F("\tLast reset        : ")); Serial.println(ESP.getResetReason().c_str());
 
 #elif defined(ESP32)
   char resetReason[20];
   getResetReason(resetReason);
   
-  Serial.printf("\n");
-  Serial.printf("************ DIY Smartmeter ********************\n");
-  Serial.printf("ESP32S2 info\n");
-  Serial.printf("\tSDK Version        : %s\n", ESP.getSdkVersion() );
-  Serial.printf("\tCore Version       : %s\n", ESP.getCoreVersion() );
-  Serial.printf("\tCore Frequency     : %ld Mhz\n", ESP.getCpuFreqMHz());
-  Serial.printf("\tLast reset         : %s\n", resetReason );
+  Serial.print(F("\n"));
+  Serial.print(F("************ DIY Smartmeter ********************\n"));
+  Serial.print(F("ESP32S2 info\n"));
+  Serial.print(F("\tSDK Version        : ")); Serial.println(ESP.getSdkVersion());
+  Serial.print(F("\tCore Version       : ")); Serial.println(ESP.getCoreVersion());
+  Serial.print(F("\tCore Frequency     : ")); Serial.print(ESP.getCpuFreqMHz()); Serial.println(F(" Mhz"));
+  Serial.print(F("\tLast reset         : ")); Serial.println(resetReason);
 #endif
 
-  Serial.printf("\tFirmware version   : %s\n", VERSION);
-  Serial.printf("MQTT settings\n");
-  Serial.printf("\tmqtt_username     : %s\n", app_config.mqtt_username);
-  Serial.printf("\tmqtt_password     : %s\n", app_config.mqtt_password);
-  Serial.printf("\tmqtt_id           : %s\n", app_config.mqtt_id);
-  Serial.printf("\tmqtt_topic        : %s\n", mqtt_topic);
-  Serial.printf("\tmqtt_remote_host  : %s\n", app_config.mqtt_remote_host);
-  Serial.printf("\tmqtt_remote_port  : %s\n", app_config.mqtt_remote_port);
-  Serial.printf("\tIP address        : %s\n", WiFi.localIP().toString().c_str());
-  Serial.printf("\tmqtt_anonimize_p1 : %s\n", app_config.mqtt_anonimize_p1);
+Serial.print(F("\tFirmware version   : ")); Serial.println(VERSION);
+  Serial.print(F("MQTT settings\n"));
+  Serial.print(F("\tmqtt_username     : ")); Serial.println(app_config.mqtt_username);
+  Serial.print(F("\tmqtt_password     : ")); Serial.println(app_config.mqtt_password);
+  Serial.print(F("\tmqtt_id           : ")); Serial.println(app_config.mqtt_id);
+  Serial.print(F("\tmqtt_topic        : ")); Serial.println(mqtt_topic);
+  Serial.print(F("\tmqtt_remote_host  : ")); Serial.println(app_config.mqtt_remote_host);
+  Serial.print(F("\tmqtt_remote_port  : ")); Serial.println(app_config.mqtt_remote_port);
+  Serial.print(F("\tIP address        : ")); Serial.println(WiFi.localIP().toString());
+  Serial.print(F("\tmqtt_anonimize_p1 : ")); Serial.println(app_config.mqtt_anonimize_p1);
 
-  Serial.printf("DSMR settings\n");
-  Serial.printf("\tP1 Baudrate       : %s baud\n", app_config.p1_baudrate);
+  Serial.print(F("DSMR settings\n"));
+  Serial.print(F("\tP1 Baudrate       : ")); Serial.print(app_config.p1_baudrate); Serial.println(F(" baud"));
 
-  Serial.printf("SECURITY settings\n");
-  Serial.printf("\tKey server host   : %s\n", app_config.sec_key_server_host);
-  Serial.printf("\tKey server port   : %s\n", app_config.sec_key_server_port);
-  Serial.printf("\tClient auth       : %s\n", app_config.sec_authentication);
-  Serial.printf("\tShared key        : %s\n", (strcmp(app_config.sec_shared_key_hex, "") == 0 ? "Empty" : "Established"));
+  Serial.print(F("SECURITY settings\n"));
+  Serial.print(F("\tKey server host   : ")); Serial.println(app_config.sec_key_server_host);
+  Serial.print(F("\tKey server port   : ")); Serial.println(app_config.sec_key_server_port);
+  Serial.print(F("\tClient auth       : ")); Serial.println(app_config.sec_authentication);
+  Serial.print(F("\tShared key        : ")); 
+  Serial.println((strcmp(app_config.sec_shared_key_hex, "") == 0 ? F("Empty") : F("Established")));
 
   // Setup mDNS Service
-  if ( MDNS.begin("diy_smartmeter") ) { 
-    MDNS.addService("http", "tcp", WEB_SERVER_PORT);     // Webserver
-    MDNS.addService("p1data", "tcp", P1_DATA_SERVER_PORT); // TCP/IP P1 data provider server
-    Serial.printf("mDNS\n");
-    Serial.printf("\tmDNS URL          : %s\n", "diy_smartmeter.local");
-    Serial.printf("\tWeb server        : %s (anonimize P1 data: %s)\n", "diy_smartmeter.local:80", app_config.tcp_anonimize_p1);
-    Serial.printf("\tData server       : %s\n", "diy_smartmeter.local:3141");
+  if (MDNS.begin("diy_smartmeter")) { 
+    MDNS.addService("http", "tcp", WEB_SERVER_PORT);
+    MDNS.addService("p1data", "tcp", P1_DATA_SERVER_PORT);
+    Serial.print(F("mDNS\n"));
+    Serial.print(F("\tmDNS URL          : ")); Serial.println(F("diy_smartmeter.local"));
+    Serial.print(F("\tWeb server        : diy_smartmeter.local:80 (anonimize P1 data: ")); 
+    Serial.print(app_config.tcp_anonimize_p1); Serial.println(F(")"));
+    Serial.print(F("\tData server       : ")); Serial.println(F("diy_smartmeter.local:3141"));
   } else {
-    Serial.printf("mDNS:   Could not start the mDNS service!\n");
+    Serial.print(F("mDNS:   Could not start the mDNS service!\n"));
   }
 
-  Serial.printf("***************************************************\n\n");
+  Serial.print(F("***************************************************\n\n"));
   Serial.flush();
 
   long baudrate = atol(app_config.p1_baudrate);

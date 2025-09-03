@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartMeter Energy Dashboard - Avans</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+    <style>
+        :root {
+            --avans-red: #c41e3a;
+            --avans-red-dark: #a01729;
+            --avans-red-light: #e8223a;
+            --avans-gradient: linear-gradient(135deg, #c41e3a 0%, #8b0000 100%);
+            --secondary-gradient: linear-gradient(135deg, #ff4757 0%, #c44569 100%);
+            --accent-gradient: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%);
+            --success-color: #2ed573;
+            --warning-color: #ffa502;
+            --info-color: #3742fa;
+            --dark-bg: #0f1419;
+            --card-bg: #1a202c;
+            --text-light: #f7fafc;
+            --text-muted: #a0aec0;
+            --border-color: #2d3748;
+            --glass-bg: rgba(26, 32, 44, 0.8);
+        }
+
+        body {
+            background: var(--dark-bg);
+            color: var(--text-light);
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+        }
+
+        .navbar {
+            background: var(--avans-gradient) !important;
+            box-shadow: 0 4px 20px rgba(196, 30, 58, 0.3);
+            border-bottom: 3px solid var(--avans-red-light);
+            backdrop-filter: blur(10px);
+        }
+
+        .navbar-brand {
+            font-weight: 700;
+            font-size: 1.6rem;
+            color: white !important;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.4);
+        }
+
+        .navbar-text {
+            color: rgba(255,255,255,0.9) !important;
+            font-weight: 500;
+        }
+
+        .dashboard-header {
+            text-align: center;
+            padding: 3rem 0;
+            background: linear-gradient(45deg, rgba(196, 30, 58, 0.1), rgba(139, 0, 0, 0.1));
+            margin-bottom: 2rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .dashboard-header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(196, 30, 58, 0.1), transparent);
+            animation: shimmer 3s infinite;
+        }
+
+        @keyframes shimmer {
+            0% { left: -100%; }
+            100% { left: 100%; }
+        }
+
+        .dashboard-header h1 {
+            font-size: 3rem;
+            font-weight: 300;
+            margin-bottom: 0.5rem;
+            background: var(--avans-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            position: relative;
+        }
+
+        .dashboard-header p {
+            color: var(--text-muted);
+            font-size: 1.2rem;
+            font-weight: 300;
+        }
+
+        .metric-card {
+            background: var(--glass-bg);
+            border-radius: 20px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+            backdrop-filter: blur(15px);
+            transition: all 0.4s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .metric-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: var(--avans-gradient);
+        }
+
+        .metric-card:hover {
+            transform: translateY(-8px) scale(1.02);
+            box-shadow: 0 15px 50px rgba(196, 30, 58, 0.2);
+            border-color: var(--avans-red);
+        }
+
+        .metric-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            opacity: 0.9;
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+        }
+
+        .metric-value {
+            font-size: 3rem;
+            font-weight: 700;
+            margin: 0;
+            line-height: 1;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .metric-label {
+            color: var(--text-muted);
+            font-size: 1rem;
+            margin-top: 0.5rem;
+            font-weight: 500;
+        }
+
+        .metric-trend {
+            font-size: 0.9rem;
+            margin-top: 0.8rem;
+            padding: 0.3rem 0.8rem;
+            border-radius: 20px;
+            font-weight: 600;
+        }
+
+        .chart-container {
+            background: var(--glass-bg);
+            border-radius: 20px;
+            padding: 2.5rem;
+            margin-bottom: 2rem;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+            backdrop-filter: blur(15px);
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .chart-container:hover {
+            box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+            transform: translateY(-2px);
+        }
+
+        .chart-container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: var(--secondary-gradient);
+        }
+
+        .chart-title {
+            font-size: 1.4rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            color: var(--text-light);
+            display: flex;
+            align-items: center;
+        }
+
+        .device-info {
+            background: var(--glass-bg);
+            border-radius: 20px;
+            padding: 2.5rem;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+            backdrop-filter: blur(15px);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .device-info::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: var(--accent-gradient);
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            margin-right: 0.8rem;
+            animation: pulse 2s infinite;
+            box-shadow: 0 0 10px currentColor;
+        }
+
+        .status-online {
+            background: var(--success-color);
+            color: var(--success-color);
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.7; transform: scale(1.1); }
+        }
+
+        .info-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 1rem 0;
+            border-bottom: 1px solid var(--border-color);
+            transition: all 0.2s ease;
+        }
+
+        .info-item:hover {
+            padding-left: 0.5rem;
+            background: rgba(196, 30, 58, 0.05);
+        }
+
+        .info-item:last-child {
+            border-bottom: none;
+        }
+
+        .info-label {
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .info-value {
+            color: var(--text-light);
+            font-weight: 600;
+        }
+
+        .consumption { color: var(--avans-red); }
+        .production { color: var(--success-color); }
+        .energy { color: var(--info-color); }
+        .efficiency { color: var(--warning-color); }
+
+        .trend-up { 
+            background: rgba(46, 213, 115, 0.2); 
+            color: var(--success-color);
+        }
+        .trend-down { 
+            background: rgba(196, 30, 58, 0.2); 
+            color: var(--avans-red);
+        }
+        .trend-neutral { 
+            background: rgba(255, 165, 2, 0.2); 
+            color: var(--warning-color);
+        }
+
+        .chart-canvas {
+            background: transparent !important;
+            border-radius: 15px;
+        }
+
+        @media (max-width: 768px) {
+            .dashboard-header h1 {
+                font-size: 2.2rem;
+            }
+            .metric-card, .chart-container, .device-info {
+                padding: 1.5rem;
+            }
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: var(--avans-red);
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">
+                <i class="fas fa-bolt me-2"></i>DIY SmartMeter Dashboard
+                <small class="ms-2" style="font-size: 0.7em; opacity: 0.8;">Smart Energy Research</small>
+            </a>
+            <div class="navbar-nav ms-auto">
+                <span class="navbar-text">
+                    <i class="fas fa-clock me-1"></i>
+                    <span id="current-time"></span>
+                </span>
+            </div>
+        </div>
+    </nav>
+
+    <div class="dashboard-header">
+        <h1><i class="fas fa-chart-line me-3"></i>Your Local Energy Monitoring Dashboard</h1>
+    </div>
+
+    <div class="container-fluid">
+        <!-- Real-time Metrics -->
+        <div class="row mb-5">
+            <div class="col-lg-2 col-md-6">
+                <div class="metric-card">
+                    <div class="metric-icon consumption">
+                        <i class="fas fa-arrow-down"></i>
+                    </div>
+                    <div class="metric-value consumption" id="current-consumption">3.2</div>
+                    <div class="metric-label">Consumption (kW)</div>
+                </div>
+            </div>
+            <div class="col-lg-2 col-md-6">
+                <div class="metric-card">
+                    <div class="metric-icon production">
+                        <i class="fas fa-solar-panel"></i>
+                    </div>
+                    <div class="metric-value production" id="current-production">2.8</div>
+                    <div class="metric-label">Production (kW)</div>
+                </div>
+            </div>
+            <div class="col-lg-2 col-md-6">
+                <div class="metric-card">
+                    <div class="metric-icon efficiency">
+                        <i class="fas fa-leaf"></i>
+                    </div>
+                    <div class="metric-value efficiency" id="net-balance">-0.4</div>
+                    <div class="metric-label">Net Balance (kW)</div>
+                </div>
+            </div>
+            <div class="col-lg-2 col-md-6">
+                <div class="metric-card">
+                    <div class="metric-icon consumption">
+                        <i class="fas fa-weight-scale"></i>
+                    </div>
+                    <div class="metric-value consumption" id="total-energy-consumed">47.3</div>
+                    <div class="metric-label">Consumed (kWh)</div>
+                </div>
+            </div>
+            <div class="col-lg-2 col-md-6">
+                <div class="metric-card">
+                    <div class="metric-icon production">
+                        <i class="fas fa-weight-scale"></i>
+                    </div>
+                    <div class="metric-value production" id="total-energy-produced">2.8</div>
+                    <div class="metric-label">Produced (kWh)</div>
+                </div>
+            </div>
+            <div class="col-lg-2 col-md-6">
+                <div class="metric-card">
+                    <div class="metric-icon efficiency">
+                        <i class="fas fa-leaf"></i>
+                    </div>
+                    <div class="metric-value efficiency" id="energy-balance">-0.4</div>
+                    <div class="metric-label">Balance (kWh)</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts Row -->
+        <div class="row">
+            <div class="col-lg-8">
+                <div class="chart-container">
+                    <h3 class="chart-title">
+                        <i class="fas fa-chart-line me-2"></i>Real-time Power (kW)
+                    </h3>
+                    <canvas id="chart_power" class="chart-canvas"></canvas>
+                </div>
+            </div>
+            <div class="col-lg-4">
+                <div class="device-info">
+                    <h3 class="chart-title">
+                        <i class="fas fa-microchip me-2"></i>Device Information
+                    </h3>
+                    <div class="info-item">
+                        <span class="info-label">Status</span>
+                        <span class="info-value">
+                            <span class="status-indicator status-online"></span>Online
+                        </span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Device Model</span>
+                        <span class="info-value" id="info-device">--</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Firmware</span>
+                        <span class="info-value" id="info-firmware">--</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">ID</span>
+                        <span class="info-value" id="info-id">--</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">IP</span>
+                        <span class="info-value" id="info-ip">--</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">DSMR baud rate</span>
+                        <span class="info-value" id="info-baud">--</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Anonymization</span>
+                        <span class="info-value" id="info-anonymize">--</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Security</span>
+                        <span class="info-value" id="info-security">--</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Energy Charts Row -->
+        <div class="row">
+            <div class="col-lg-6">
+                <div class="chart-container">
+                    <h3 class="chart-title">
+                        <i class="fas fa-chart-area me-2"></i>Energy Meter
+                    </h3>
+                    <canvas id="chart_energy" class="chart-canvas"></canvas>
+                </div>
+            </div>
+            <div class="col-lg-6">
+                <div class="chart-container">
+                    <h3 class="chart-title">
+                        <i class="fas fa-history me-2"></i>Historical kWh Data
+                        <small class="ms-auto text-muted">Last 7 days comparison</small>
+                    </h3>
+                    <canvas id="chart_historical" class="chart-canvas"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container text-center mb-3">powered by research team <a class="link-light" style="text-decoration: none;" href="https://www.avans.nl/onderzoek/expertisecentra/mnext/lectoraten/smart-energy">Smart Energy</a> of Avans Hogeschool</div>
+    
+    <script>
+        // Global variables
+        let data = null;
+        let info = null;
+        let startTime = new Date();
+        let charts = {};
+
+        // Create time labels for 3 hours (5-minute intervals)
+        const data_x = [];
+        const timeLabels = [];
+        for (let i = 0; i < 12 * 3; i++) {
+            data_x.unshift(i * 5);
+            if (i === 0) timeLabels.unshift('Now');
+            else if (i % 6 === 0) timeLabels.unshift(`${i * 5}min ago`);
+            else timeLabels.unshift('');
+        }
+
+        // Update current time
+        function updateCurrentTime() {
+            const now = new Date();
+            document.getElementById('current-time').textContent = now.toLocaleTimeString();
+        }
+
+        // Chart configurations with Avans red theme
+        const chartColors = {
+            consumption: '#c41e3a',
+            production: '#2ed573',
+            energy: '#3742fa',
+            grid: '#2d3748',
+            text: '#a0aec0'
+        };
+
+        // Power Flow Chart
+        const configPower = {
+            type: 'line',
+            data: {
+                labels: timeLabels,
+                datasets: [{
+                    label: 'Consumption (kW)',
+                    data: [],
+                    fill: true,
+                    borderColor: chartColors.consumption,
+                    backgroundColor: chartColors.consumption + '20',
+                    tension: 0.4,
+                    pointRadius: 2,
+                    pointHoverRadius: 6,
+                    borderWidth: 3,
+                }, {
+                    label: 'Production (kW)',
+                    data: [],
+                    fill: true,
+                    borderColor: chartColors.production,
+                    backgroundColor: chartColors.production + '20',
+                    tension: 0.4,
+                    pointRadius: 2,
+                    pointHoverRadius: 6,
+                    borderWidth: 3,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                animation: { duration: 1500, easing: 'easeInOutQuart' },
+                interaction: {
+                    intersect: false,
+                    mode: 'index'
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: { 
+                            color: chartColors.grid,
+                            drawBorder: false
+                        },
+                        ticks: { 
+                            color: chartColors.text,
+                            font: { size: 11 }
+                        },
+                        title: {
+                            display: true,
+                            text: 'Power (kW)',
+                            color: chartColors.text
+                        }
+                    },
+                    x: {
+                        grid: { 
+                            color: chartColors.grid,
+                            drawBorder: false
+                        },
+                        ticks: { 
+                            color: chartColors.text,
+                            font: { size: 11 },
+                            maxTicksLimit: 8
+                        }
+                    }
+                },
+                plugins: {
+                    legend: { 
+                        labels: { 
+                            color: '#f7fafc',
+                            font: { size: 12, weight: '500' }
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(26, 32, 44, 0.95)',
+                        titleColor: '#f7fafc',
+                        bodyColor: '#f7fafc',
+                        borderColor: chartColors.consumption,
+                        borderWidth: 1
+                    }
+                }
+            }
+        };
+
+        // Energy History Chart
+        const configEnergy = {
+            type: 'line',
+            data: {
+                labels: timeLabels,
+                datasets: [{
+                    label: 'Energy Consumed (kWh)',
+                    data: [],
+                    fill: true,
+                    borderColor: chartColors.consumption,
+                    backgroundColor: chartColors.consumption + '20',
+                    tension: 0.4,
+                    pointRadius: 2,
+                    pointHoverRadius: 6,
+                    borderWidth: 3,
+                }, {
+                    label: 'Energy Produced (kWh)',
+                    data: [],
+                    fill: true,
+                    borderColor: chartColors.production,
+                    backgroundColor: chartColors.production + '20',
+                    tension: 0.4,
+                    pointRadius: 2,
+                    pointHoverRadius: 6,
+                    borderWidth: 3,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                animation: { duration: 1500, easing: 'easeInOutQuart' },
+                scales: {
+                    y: {
+                        beginAtZero: false,
+                        grid: { 
+                            color: chartColors.grid,
+                            drawBorder: false
+                        },
+                        ticks: { 
+                            color: chartColors.text,
+                            font: { size: 11 }
+                        },
+                        title: {
+                            display: true,
+                            text: 'Energy (kWh)',
+                            color: chartColors.text
+                        }
+                    },
+                    x: {
+                        grid: { 
+                            color: chartColors.grid,
+                            drawBorder: false
+                        },
+                        ticks: { 
+                            color: chartColors.text,
+                            font: { size: 11 },
+                            maxTicksLimit: 8
+                        }
+                    }
+                },
+                plugins: {
+                    legend: { 
+                        labels: { 
+                            color: '#f7fafc',
+                            font: { size: 12, weight: '500' }
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(26, 32, 44, 0.95)',
+                        titleColor: '#f7fafc',
+                        bodyColor: '#f7fafc',
+                        borderColor: chartColors.energy,
+                        borderWidth: 1
+                    }
+                }
+            }
+        };
+
+        // Historical Data Chart
+        const configHistorical = {
+            type: 'bar',
+            data: {
+                labels: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
+                datasets: [{
+                    label: 'Consumption (kWh)',
+                    data: [52.3, 48.7, 45.2, 51.8, 47.9, 38.4, 35.1],
+                    backgroundColor: chartColors.consumption + 'CC',
+                    borderColor: chartColors.consumption,
+                    borderWidth: 2,
+                    borderRadius: 6,
+                    borderSkipped: false,
+                }, {
+                    label: 'Production (kWh)',
+                    data: [28.4, 31.2, 25.8, 33.1, 29.7, 26.3, 24.9],
+                    backgroundColor: chartColors.production + 'CC',
+                    borderColor: chartColors.production,
+                    borderWidth: 2,
+                    borderRadius: 6,
+                    borderSkipped: false,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                animation: { 
+                    duration: 1800,
+                    delay: (context) => context.dataIndex * 100 
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: { 
+                            color: chartColors.grid,
+                            drawBorder: false
+                        },
+                        ticks: { 
+                            color: chartColors.text,
+                            font: { size: 11 }
+                        },
+                        title: {
+                            display: true,
+                            text: 'Energy (kWh)',
+                            color: chartColors.text
+                        }
+                    },
+                    x: {
+                        grid: { 
+                            display: false
+                        },
+                        ticks: { 
+                            color: chartColors.text,
+                            font: { size: 11 }
+                        }
+                    }
+                },
+                plugins: {
+                    legend: { 
+                        labels: { 
+                            color: '#f7fafc',
+                            font: { size: 12, weight: '500' }
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(26, 32, 44, 0.95)',
+                        titleColor: '#f7fafc',
+                        bodyColor: '#f7fafc',
+                        borderColor: chartColors.consumption,
+                        borderWidth: 1
+                    }
+                }
+            }
+        };
+
+        // Initialize charts
+        function initializeCharts() {
+            try {
+                const ctx_power = document.getElementById('chart_power').getContext('2d');
+                const ctx_energy = document.getElementById('chart_energy').getContext('2d');
+                const ctx_historical = document.getElementById('chart_historical').getContext('2d');
+
+                charts.power = new Chart(ctx_power, configPower);
+                charts.energy = new Chart(ctx_energy, configEnergy);
+                charts.historical = new Chart(ctx_historical, configHistorical);
+
+                console.log('All charts initialized successfully');
+
+            } catch (error) {
+                console.error('Error initializing charts:', error);
+            }
+        }
+
+        // Fetch data function (adapted from original)
+        function getActualData() {
+            $.ajax({
+                url: "http://diy_smartmeter.local/data",
+                success: function(result) {
+                    data = result;
+                    updateCharts();
+                    updateMetrics();
+                    //document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
+                },
+                error: function(error) {
+                    console.log("Could not fetch data from /data endpoint. Using sample data.");
+                }
+            });
+        }
+
+        function getDeviceInfo() {
+            $.ajax({
+                url: "http://diy_smartmeter.local/info",
+                success: function(result) {
+                    info = result;
+                    updateInfo();
+                },
+                error: function(error) {
+                    console.log("Could not fetch data from /info endpoint. Using sample data.");
+                }
+            });
+        }
+
+        // Update all charts
+        function updateCharts() {
+            if (!data || !charts.power) return;
+
+            try {
+                // Update power chart
+                charts.power.data.datasets[0].data = data.power_consumption;
+                charts.power.data.datasets[1].data = data.power_production;
+                charts.power.update('none');
+
+                data["ec"] = data.energy_consumption1;
+                for ( let i=0; i < data.ec.length; i++ ) {
+                    data.ec[i] += data.energy_consumption2[i];
+                }
+
+                data["ep"] = data.energy_production1;
+                for ( let i=0; i < data.ep.length; i++ ) {
+                    data.ep[i] += data.energy_production2[i];
+                }
+
+                // Update energy chart (cumulative)
+                charts.energy.data.datasets[0].data = data.ec;
+                charts.energy.data.datasets[1].data = data.ep;
+                charts.energy.update('none');
+
+                if ( info ) {
+                    document.getElementById('info-baud').textContent = info.dsmr_baud + " (" + data.DSMRVersion + ")";
+                }
+                
+                console.log('Charts updated successfully');
+            } catch (error) {
+                console.error('Error updating charts:', error);
+            }
+        }
+
+        // Update metric cards
+        function updateMetrics() {
+            if (!data) return;
+
+            try {
+                const currentConsumption = data.power_consumption[data.power_consumption.length - 1] || 0;
+                const currentProduction = data.power_production[data.power_production.length - 1] || 0;
+                const energyConsumption = data.ec[data.ec.length - 1] || 0;
+                const energyProduction = data.ep[data.ep.length - 1] || 0;
+                const netBalance = currentProduction - currentConsumption;
+                const energyBalance = energyProduction - energyConsumption;
+
+                document.getElementById('current-consumption').textContent = currentConsumption.toFixed(1);
+                document.getElementById('current-production').textContent = currentProduction.toFixed(1);
+                document.getElementById('net-balance').textContent = netBalance.toFixed(1);
+                document.getElementById('total-energy-consumed').textContent = energyConsumption.toFixed(0);
+                document.getElementById('total-energy-produced').textContent = energyProduction.toFixed(0);
+                document.getElementById('energy-balance').textContent = energyBalance.toFixed(1);
+
+            } catch (error) {
+                console.error('Error updating metrics:', error);
+            }
+        }
+
+        function updateInfo () {
+            if (!data) return;
+
+            try {
+//{"hardware": "ESP8266","sdk":"2.2.2-dev(38a443e)","core":"3.1.2","freq":"80","reset":"External System","online":"YES","ip":"192.168.2.80","mqtt_anon":"YES","dsmr_baud":"115200","client_auth":"YES","tcp_anon":"YES"}
+                document.getElementById('info-device').textContent = "DIY SmartMeter " + info.hardware;
+                document.getElementById('info-firmware').textContent = "SDK: " + info.sdk + " / Core: " + info.core;
+                document.getElementById('info-ip').textContent = info.ip;
+                document.getElementById('info-baud').textContent = info.dsmr_baud;
+                document.getElementById('info-id').textContent = info.id;
+                document.getElementById('info-anonymize').textContent = "MQTT: " + info.mqtt_anon + " / TCP: " + info.tcp_anon;
+                document.getElementById('info-security').textContent = info.client_auth;
+
+            } catch (error) {
+                console.error('Error updating info:', error);
+                setTimeout(() => {
+                    getDeviceInfo();
+                }, 2000);
+            }
+        }
+
+        // Initialize everything when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Initializing SmartMeter Dashboard...');
+            
+            // Update time immediately and then every second
+            updateCurrentTime();
+            setInterval(updateCurrentTime, 1000);
+            
+            // Initialize charts after a short delay to ensure DOM is ready
+            setTimeout(() => {
+                initializeCharts();
+                updateCharts();
+                updateMetrics();
+            }, 100);
+            
+            // Try to fetch real data
+            getActualData();
+            
+            // Set up periodic updates
+            setInterval(getActualData, 5000); // Try real data every 5 seconds
+            
+            setTimeout(() => {
+                getDeviceInfo();
+            }, 4000);
+
+            console.log('Dashboard initialization complete');
+        });
+
+        // Handle window resize
+        window.addEventListener('resize', function() {
+            Object.values(charts).forEach(chart => {
+                if (chart) chart.resize();
+            });
+        });
+
+    </script>
+</body>
+</html>

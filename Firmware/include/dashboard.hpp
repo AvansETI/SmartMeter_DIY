@@ -40,7 +40,6 @@
 
 // Includes
 #include <Arduino.h>
-#include <string>
 
 #if defined(ESP8266)
 #include <ESP8266WebServer.h>
@@ -48,6 +47,33 @@
 #elif defined(ESP32)
 #include <WebServer.h>
 #endif
+
+const char rootHtml[] = R"(
+<!doctype html>
+<html lang="en" data-bs-theme="dark">
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <title>SmartMeter DIY</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js" integrity="sha384-I7E8VVD/ismYTF4hNIPjVp/Zjvgyol6VFvRkX/vR+Vc4jQkC+hVqc2pM8ODewa9r" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js" integrity="sha384-Sse/HDqcypGpyTDpvZOJNnG0TT3feGQUkF9H+mnRvic+LjR+K1NhTt8f51KIQ3v3" crossorigin="anonymous"></script>
+</head>
+<body>
+  <script>
+$(document).ready(function(){
+$.ajax({
+    url: "https://raw.githubusercontent.com/AvansETI/SmartMeter_DIY/refs/heads/master/Firmware/sm-esp8266/web/body.html",
+    success: function (data) { $('body').append(data); },
+    dataType: 'html'
+});
+});
+  </script>
+</body>
+</html>)";
 
 /*
   Class: Dashboard
@@ -150,32 +176,6 @@ public:
   Version: MS, Initial code
   *******************************************************************/  
   {
-    String rootHtml = R"(
-<!doctype html>
-<html lang="en" data-bs-theme="dark">
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-  <title>SmartMeter DIY</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
-  <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js" integrity="sha384-I7E8VVD/ismYTF4hNIPjVp/Zjvgyol6VFvRkX/vR+Vc4jQkC+hVqc2pM8ODewa9r" crossorigin="anonymous"></script>
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js" integrity="sha384-Sse/HDqcypGpyTDpvZOJNnG0TT3feGQUkF9H+mnRvic+LjR+K1NhTt8f51KIQ3v3" crossorigin="anonymous"></script>
-</head>
-<body>
-  <script>
-$(document).ready(function(){
-$.ajax({
-    url: "https://raw.githubusercontent.com/AvansETI/SmartMeter_DIY/refs/heads/master/Firmware/sm-esp8266/web/body.html",
-    success: function (data) { $('body').append(data); },
-    dataType: 'html'
-});
-});
-  </script>
-</body>
-</html>)";
     server.send(200, "text/html", rootHtml);
   }
 
@@ -196,34 +196,40 @@ $.ajax({
   Version: MS, Initial code
   *******************************************************************/
   {
-    String dataJson = "{\"power_consumption\":["; 
+    char json[1024] = "";
+    int offset = sprintf(json, "{\"power_consumption\":[");
     for ( uint16_t i=0; i < this->dataPointer-1; i++ ) {
-      dataJson = dataJson + actualPowerConsumption[i] + ",";
+      offset  += sprintf(json + offset,  "%f,", actualPowerConsumption[i]);
     }
-    dataJson = dataJson + actualPowerConsumption[this->dataPointer-1] + "],\"power_production\":[";
-    for ( uint16_t i=0; i < this->dataPointer-1; i++ ) {
-      dataJson = dataJson + actualPowerProduction[i] + ",";
-    }
-    dataJson = dataJson + actualPowerProduction[this->dataPointer-1] + "],\"energy_consumption1\":[";
-    for ( uint16_t i=0; i < this->dataPointer-1; i++ ) {
-      dataJson = dataJson + energyConsumption1[i] + ",";
-    }
-    dataJson = dataJson + energyConsumption1[this->dataPointer-1] + "],\"energy_consumption2\":[";
-    for ( uint16_t i=0; i < this->dataPointer-1; i++ ) {
-      dataJson = dataJson + energyConsumption2[i] + ",";
-    }
-    dataJson = dataJson + energyConsumption2[this->dataPointer-1] + "],\"energy_production1\":[";
-    for ( uint16_t i=0; i < this->dataPointer-1; i++ ) {
-      dataJson = dataJson + energyProduction1[i] + ",";
-    }
-    dataJson = dataJson + energyProduction1[this->dataPointer-1] + "],\"energy_production2\":[";
-    for ( uint16_t i=0; i < this->dataPointer-1; i++ ) {
-      dataJson = dataJson + energyProduction2[i] + ",";
-    }
-    dataJson = dataJson + energyProduction2[this->dataPointer-1] + "],\"DSMRVersion\":\"" + DSMRVersion +
-              "\",\"DSMRTimestamp\":\"" + DSMRTimestamp + "\"}\n";
 
-    sendJSON(dataJson.c_str());
+    offset    += sprintf(json + offset,  "%f],\"power_production\":[", actualPowerConsumption[this->dataPointer-1]);
+    for ( uint16_t i=0; i < this->dataPointer-1; i++ ) {
+      offset  += sprintf(json + offset,  "%f,", actualPowerProduction[i]);
+    }
+
+    offset    += sprintf(json + offset,  "%f],\"energy_consumption1\":[", actualPowerProduction[this->dataPointer-1]);
+    for ( uint16_t i=0; i < this->dataPointer-1; i++ ) {
+      offset  += sprintf(json + offset,  "%f,", energyConsumption1[i]);
+    }
+
+    offset    += sprintf(json + offset,  "%f],\"energy_consumption2\":[", energyConsumption1[this->dataPointer-1]);
+    for ( uint16_t i=0; i < this->dataPointer-1; i++ ) {
+      offset  += sprintf(json + offset,  "%f,", energyConsumption2[i]);
+    }
+
+    offset    += sprintf(json + offset,  "%f],\"energy_production1\":[", energyConsumption2[this->dataPointer-1]);
+    for ( uint16_t i=0; i < this->dataPointer-1; i++ ) {
+      offset  += sprintf(json + offset,  "%f,", energyProduction1[i]);
+    }
+
+    offset    += sprintf(json + offset,  "%f],\"energy_production2\":[", energyProduction1[this->dataPointer-1]);
+    for ( uint16_t i=0; i < this->dataPointer-1; i++ ) {
+      offset  += sprintf(json + offset,  "%f,", energyProduction2[i]);
+    }
+    offset    += sprintf(json + offset,  "%f],\"DSMRVersion\":\"%s\",\"DSMRTimestamp\":\"%s\"}",
+       energyProduction2[this->dataPointer-1], DSMRVersion, DSMRTimestamp);
+
+    sendJSON(json);
   }
 
   /******************************************************************/
@@ -236,8 +242,8 @@ $.ajax({
   Version: MS, Initial code
   *******************************************************************/
   {
-    String dataJson = "";
-    server.send(200, "text/json", dataJson);
+    char json[1024] = "";
+    sendJSON(json);
   }
 
   /******************************************************************/
@@ -250,8 +256,8 @@ $.ajax({
   Version: MS, Initial code
   *******************************************************************/
   {
-    String dataJson = "";
-    server.send(200, "text/json", dataJson);
+    char json[1024] = "";
+    sendJSON(json);
   }
 
   /******************************************************************/
@@ -264,8 +270,8 @@ $.ajax({
   Version: MS, Initial code
   *******************************************************************/
   {
-    String dataJson = "";
-    server.send(200, "text/json", dataJson);
+    char json[1024] = "";
+    sendJSON(json);
   }
 
   /******************************************************************/
@@ -280,29 +286,30 @@ $.ajax({
   {
     char json[1024] = "";
 #if defined(ESP8266)
-    int offset = sprintf(json, "{\"hardware\": \"ESP8266\n,");
-    offset    += sprintf(json,  "\"sdk\":\"%s\",", ESP.getSdkVersion());
-    offset    += sprintf(json,  "\"core\":\"%s\",", ESP.getCoreVersion().c_str());
-    offset    += sprintf(json,  "\"freq\":\"%d\",", ESP.getCpuFreqMHz());
-    offset    += sprintf(json,  "\"reset\":\"%s\",", ESP.getResetReason().c_str());
+    int offset = sprintf(json, "{\"hardware\": \"ESP8266\",");
+    offset    += sprintf(json + offset,  "\"sdk\":\"%s\",", ESP.getSdkVersion());
+    offset    += sprintf(json + offset,  "\"core\":\"%s\",", ESP.getCoreVersion().c_str());
+    offset    += sprintf(json + offset,  "\"freq\":\"%d\",", ESP.getCpuFreqMHz());
+    offset    += sprintf(json + offset,  "\"reset\":\"%s\",", ESP.getResetReason().c_str());
 
 #elif defined(ESP32)
     char resetReason[20];
     getResetReason(resetReason);
-    int offset = sprintf(json, "{\"hardware\": \"ESP32S2\n,");
-    offset    += sprintf(json,   "\"sdk\":\"%s\",", ESP.getSdkVersion());
-    offset    += sprintf(json,   "\"core\":\"%s\",", ESP.getCoreVersion());
-    offset    += sprintf(json,   "\"freq\":\"%ld\",", ESP.getCpuFreqMHz());
-    offset    += sprintf(json,  "\"reset\":\"%s\",", resetReason);
+    int offset = sprintf(json, "{\"hardware\": \"ESP32S2\",");
+    offset    += sprintf(json + offset,   "\"sdk\":\"%s\",", ESP.getSdkVersion());
+    offset    += sprintf(json + offset,   "\"core\":\"%s\",", ESP.getCoreVersion());
+    offset    += sprintf(json + offset,   "\"freq\":\"%ld\",", ESP.getCpuFreqMHz());
+    offset    += sprintf(json + offset,  "\"reset\":\"%s\",", resetReason);
 #endif
-    offset    += sprintf(json,   "\"online\":\"%s\",", "YES"); // @TODO
-    offset    += sprintf(json,   "\"ip\":\"%s\",", WiFi.localIP().toString().c_str());
-    offset    += sprintf(json,   "\"mqtt_anon\":\"%s\",", app_config.mqtt_anonimize_p1);
-    offset    += sprintf(json,   "\"dsmr_baud\":\"%s\",", app_config.p1_baudrate);
-    offset    += sprintf(json,   "\"client_auth\":\"%s\",", app_config.sec_authentication);
-    offset    += sprintf(json,   "\"tcp_anon\":\"%s\"}", app_config.tcp_anonimize_p1);
+    offset    += sprintf(json + offset,   "\"id\":\"%s\",", app_config.mqtt_id);
+    offset    += sprintf(json + offset,   "\"online\":\"%s\",", "YES"); // @TODO
+    offset    += sprintf(json + offset,   "\"ip\":\"%s\",", WiFi.localIP().toString().c_str());
+    offset    += sprintf(json + offset,   "\"mqtt_anon\":\"%s\",", app_config.mqtt_anonimize_p1);
+    offset    += sprintf(json + offset,   "\"dsmr_baud\":\"%s\",", app_config.p1_baudrate);
+    offset    += sprintf(json + offset,   "\"client_auth\":\"%s\",", app_config.sec_authentication);
+    offset    += sprintf(json + offset,   "\"tcp_anon\":\"%s\"}", app_config.tcp_anonimize_p1);
 
-    server.send(200, "text/json", json);
+    sendJSON(json);
   }
 
   /******************************************************************/

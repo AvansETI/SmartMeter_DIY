@@ -35,8 +35,8 @@
 // Configuration part of the library
 #define P1_DATA_SERVER_PORT                 3141
 #define P1_DATA_SERVER_MAX_CLIENTS          2 // Note: Too many clients will have effect on performance (1-5)
-#define P1_DATA_SERVER_WELCOME_MSG          "DIY Smartmeter P1\n"
-#define P1_DATA_SERVER_TOO_MANY_CLIENTS_MSG "DIY Smartmeter P1 - too many clients connected.\n"
+const char P1_DATA_SERVER_WELCOME_MSG[] PROGMEM = "DIY Smartmeter P1\n";
+const char P1_DATA_SERVER_TOO_MANY_CLIENTS_MSG[] PROGMEM = "DIY Smartmeter P1 - too many clients connected.\n";
 
 // Includes
 #include <Arduino.h>
@@ -103,16 +103,14 @@ public:
         if ( !this->tcpServerClient[i].connected() ) {
           this->tcpServerClient[i] = client;
           this->tcpServerClient[i].setNoDelay(true);
-          const char t[] = P1_DATA_SERVER_WELCOME_MSG;
-          this->tcpServerClient[i].write(t, strlen(t));
+          this->tcpServerClient[i].write(P1_DATA_SERVER_WELCOME_MSG, strlen(P1_DATA_SERVER_WELCOME_MSG));
           foundOpenWiFiClient = true;
         }
         i++;
       }
 
       if ( !foundOpenWiFiClient ) { // No client found, all clients are already connected
-        const char t[] = P1_DATA_SERVER_TOO_MANY_CLIENTS_MSG;
-        client.write(t, strlen(t));
+        client.write(P1_DATA_SERVER_TOO_MANY_CLIENTS_MSG, strlen(P1_DATA_SERVER_TOO_MANY_CLIENTS_MSG));
         client.stop();
       }      
     }
@@ -140,7 +138,7 @@ public:
   /* 
   short:      Anonymize P1 data by removing the equipment IDs found in the message         
   inputs:     Pointer to the p1 message   
-  outputs:    Returns true when parsen successfull, otherwise false.
+  outputs:    Returns true when parsed successfull, otherwise false.
   notes:      0-0:96.1.1(**EQUIPMENT-ID**) => :96.1. is always equipment identifiers         
   Version :   MS, Initial code
   *******************************************************************/
