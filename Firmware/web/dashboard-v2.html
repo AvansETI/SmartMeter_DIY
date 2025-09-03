@@ -603,7 +603,7 @@
         }
 
         // Initialize everything when page loads
-        document.addEventListener('DOMContentLoaded', function() {
+        function start () {
             console.log('Initializing SmartMeter Dashboard...');
             
             // Update time immediately and then every second
@@ -628,7 +628,7 @@
             }, 4000);
 
             console.log('Dashboard initialization complete');
-        });
+        }
 
         // Handle window resize
         window.addEventListener('resize', function() {
@@ -636,5 +636,12 @@
                 if (chart) chart.resize();
             });
         });
+
+        //document.addEventListener('DOMContentLoaded', function() {
+        //}
+
+        setTimeout(() => {
+            start();
+        }, 1000);
 
     </script>
