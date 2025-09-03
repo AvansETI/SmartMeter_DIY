@@ -55,12 +55,9 @@ const char rootHtml[] = R"(
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-  <title>SmartMeter DIY</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
-  <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js" integrity="sha384-I7E8VVD/ismYTF4hNIPjVp/Zjvgyol6VFvRkX/vR+Vc4jQkC+hVqc2pM8ODewa9r" crossorigin="anonymous"></script>
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js" integrity="sha384-Sse/HDqcypGpyTDpvZOJNnG0TT3feGQUkF9H+mnRvic+LjR+K1NhTt8f51KIQ3v3" crossorigin="anonymous"></script>
+  <title>DIY SmartMeter Dashboard</title>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
 </head>
 <body>
   <script>
@@ -141,9 +138,7 @@ public:
   *******************************************************************/
   {
     this->server.on("/", std::bind(&Dashboard::handleRoot, this));               // Call the 'handleRoot' function when a client requests URI "/"
-    this->server.on("/data", std::bind(&Dashboard::handleDataApi, this));        // Call the 'handleDataApi' function when a client requests URI "/data"
     this->server.on("/info", std::bind(&Dashboard::handleInfoApi, this));
-    this->server.on("/actual", std::bind(&Dashboard::handleActualApi, this));
     this->server.on("/power", std::bind(&Dashboard::handlePowerApi, this));
     this->server.on("/energy", std::bind(&Dashboard::handleEnergyApi, this));
     this->server.onNotFound(std::bind(&Dashboard::handleNotFound, this));        // When a client requests an unknown URI (i.e. something other than "/"), call function "handleNotFound"
@@ -187,7 +182,7 @@ public:
   }
 
   /******************************************************************/
-  void handleDataApi()
+  void handleActualApi()
   /* 
   short:   Returns a JSON with the data that is collected.
   inputs:        
@@ -196,7 +191,7 @@ public:
   Version: MS, Initial code
   *******************************************************************/
   {
-    char json[1024] = "";
+    char json[2048] = "";
     int offset = sprintf(json, "{\"power_consumption\":[");
     for ( uint16_t i=0; i < this->dataPointer-1; i++ ) {
       offset  += sprintf(json + offset,  "%f,", actualPowerConsumption[i]);
@@ -207,7 +202,51 @@ public:
       offset  += sprintf(json + offset,  "%f,", actualPowerProduction[i]);
     }
 
-    offset    += sprintf(json + offset,  "%f],\"energy_consumption1\":[", actualPowerProduction[this->dataPointer-1]);
+    offset    += sprintf(json + offset,  "%f],\"DSMRVersion\":\"%s\",\"DSMRTimestamp\":\"%s\"}",
+       actualPowerProduction[this->dataPointer-1], DSMRVersion, DSMRTimestamp);
+
+    sendJSON(json);
+  }
+
+  /******************************************************************/
+  void handlePowerApi()
+  /* 
+  short:   Returns a JSON with the data that is collected.
+  inputs:        
+  outputs: 
+  notes:         
+  Version: MS, Initial code
+  *******************************************************************/
+  {
+    char json[2048] = "";
+    int offset = sprintf(json, "{\"power_consumption\":[");
+    for ( uint16_t i=0; i < this->dataPointer-1; i++ ) {
+      offset  += sprintf(json + offset,  "%f,", actualPowerConsumption[i]);
+    }
+
+    offset    += sprintf(json + offset,  "%f],\"power_production\":[", actualPowerConsumption[this->dataPointer-1]);
+    for ( uint16_t i=0; i < this->dataPointer-1; i++ ) {
+      offset  += sprintf(json + offset,  "%f,", actualPowerProduction[i]);
+    }
+
+    offset    += sprintf(json + offset,  "%f],\"DSMRVersion\":\"%s\",\"DSMRTimestamp\":\"%s\"}",
+       actualPowerProduction[this->dataPointer-1], DSMRVersion, DSMRTimestamp);
+
+    sendJSON(json);
+  }
+
+  /******************************************************************/
+  void handleEnergyApi()
+  /* 
+  short:   Returns a JSON with the data that is collected.
+  inputs:        
+  outputs: 
+  notes:         
+  Version: MS, Initial code
+  *******************************************************************/
+  {
+    char json[2048] = "";
+    int offset = sprintf(json, "{\"energy_consumption1\":[");
     for ( uint16_t i=0; i < this->dataPointer-1; i++ ) {
       offset  += sprintf(json + offset,  "%f,", energyConsumption1[i]);
     }
@@ -226,51 +265,8 @@ public:
     for ( uint16_t i=0; i < this->dataPointer-1; i++ ) {
       offset  += sprintf(json + offset,  "%f,", energyProduction2[i]);
     }
-    offset    += sprintf(json + offset,  "%f],\"DSMRVersion\":\"%s\",\"DSMRTimestamp\":\"%s\"}",
-       energyProduction2[this->dataPointer-1], DSMRVersion, DSMRTimestamp);
+    offset    += sprintf(json + offset,  "%f]}", energyProduction2[this->dataPointer-1]);
 
-    sendJSON(json);
-  }
-
-  /******************************************************************/
-  void handleActualApi()
-  /* 
-  short:   Returns a JSON with the data that is collected.
-  inputs:        
-  outputs: 
-  notes:         
-  Version: MS, Initial code
-  *******************************************************************/
-  {
-    char json[1024] = "";
-    sendJSON(json);
-  }
-
-  /******************************************************************/
-  void handlePowerApi()
-  /* 
-  short:   Returns a JSON with the data that is collected.
-  inputs:        
-  outputs: 
-  notes:         
-  Version: MS, Initial code
-  *******************************************************************/
-  {
-    char json[1024] = "";
-    sendJSON(json);
-  }
-
-  /******************************************************************/
-  void handleEnergyApi()
-  /* 
-  short:   Returns a JSON with the data that is collected.
-  inputs:        
-  outputs: 
-  notes:         
-  Version: MS, Initial code
-  *******************************************************************/
-  {
-    char json[1024] = "";
     sendJSON(json);
   }
 

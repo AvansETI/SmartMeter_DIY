@@ -1,0 +1,297 @@
+:root {
+    --avans-red: #c41e3a;
+    --avans-red-dark: #a01729;
+    --avans-red-light: #e8223a;
+    --avans-gradient: linear-gradient(135deg, #c41e3a 0%, #8b0000 100%);
+    --secondary-gradient: linear-gradient(135deg, #ff4757 0%, #c44569 100%);
+    --accent-gradient: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%);
+    --success-color: #2ed573;
+    --warning-color: #ffa502;
+    --info-color: #3742fa;
+    --dark-bg: #0f1419;
+    --card-bg: #1a202c;
+    --text-light: #f7fafc;
+    --text-muted: #a0aec0;
+    --border-color: #2d3748;
+    --glass-bg: rgba(26, 32, 44, 0.8);
+}
+
+body {
+    background: var(--dark-bg);
+    color: var(--text-light);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    margin: 0;
+    padding: 0;
+    min-height: 100vh;
+}
+
+.navbar {
+    background: var(--avans-gradient) !important;
+    box-shadow: 0 4px 20px rgba(196, 30, 58, 0.3);
+    border-bottom: 3px solid var(--avans-red-light);
+    backdrop-filter: blur(10px);
+}
+
+.navbar-brand {
+    font-weight: 700;
+    font-size: 1.6rem;
+    color: white !important;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.4);
+}
+
+.navbar-text {
+    color: rgba(255,255,255,0.9) !important;
+    font-weight: 500;
+}
+
+.dashboard-header {
+    text-align: center;
+    padding: 3rem 0;
+    background: linear-gradient(45deg, rgba(196, 30, 58, 0.1), rgba(139, 0, 0, 0.1));
+    margin-bottom: 2rem;
+    position: relative;
+    overflow: hidden;
+}
+
+.dashboard-header::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(196, 30, 58, 0.1), transparent);
+    animation: shimmer 3s infinite;
+}
+
+@keyframes shimmer {
+    0% { left: -100%; }
+    100% { left: 100%; }
+}
+
+.dashboard-header h1 {
+    font-size: 3rem;
+    font-weight: 300;
+    margin-bottom: 0.5rem;
+    background: var(--avans-gradient);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    position: relative;
+}
+
+.dashboard-header p {
+    color: var(--text-muted);
+    font-size: 1.2rem;
+    font-weight: 300;
+}
+
+.metric-card {
+    background: var(--glass-bg);
+    border-radius: 20px;
+    padding: 2rem;
+    margin-bottom: 2rem;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    backdrop-filter: blur(15px);
+    transition: all 0.4s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.metric-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: var(--avans-gradient);
+}
+
+.metric-card:hover {
+    transform: translateY(-8px) scale(1.02);
+    box-shadow: 0 15px 50px rgba(196, 30, 58, 0.2);
+    border-color: var(--avans-red);
+}
+
+.metric-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    opacity: 0.9;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+}
+
+.metric-value {
+    font-size: 3rem;
+    font-weight: 700;
+    margin: 0;
+    line-height: 1;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+.metric-label {
+    color: var(--text-muted);
+    font-size: 1rem;
+    margin-top: 0.5rem;
+    font-weight: 500;
+}
+
+.metric-trend {
+    font-size: 0.9rem;
+    margin-top: 0.8rem;
+    padding: 0.3rem 0.8rem;
+    border-radius: 20px;
+    font-weight: 600;
+}
+
+.chart-container {
+    background: var(--glass-bg);
+    border-radius: 20px;
+    padding: 2.5rem;
+    margin-bottom: 2rem;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    backdrop-filter: blur(15px);
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+.chart-container:hover {
+    box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+    transform: translateY(-2px);
+}
+
+.chart-container::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: var(--secondary-gradient);
+}
+
+.chart-title {
+    font-size: 1.4rem;
+    font-weight: 600;
+    margin-bottom: 1.5rem;
+    color: var(--text-light);
+    display: flex;
+    align-items: center;
+}
+
+.device-info {
+    background: var(--glass-bg);
+    border-radius: 20px;
+    padding: 2.5rem;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    backdrop-filter: blur(15px);
+    position: relative;
+    overflow: hidden;
+}
+
+.device-info::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: var(--accent-gradient);
+}
+
+.status-indicator {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    margin-right: 0.8rem;
+    animation: pulse 2s infinite;
+    box-shadow: 0 0 10px currentColor;
+}
+
+.status-online {
+    background: var(--success-color);
+    color: var(--success-color);
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.7; transform: scale(1.1); }
+}
+
+.info-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 1rem 0;
+    border-bottom: 1px solid var(--border-color);
+    transition: all 0.2s ease;
+}
+
+.info-item:hover {
+    padding-left: 0.5rem;
+    background: rgba(196, 30, 58, 0.05);
+}
+
+.info-item:last-child {
+    border-bottom: none;
+}
+
+.info-label {
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.info-value {
+    color: var(--text-light);
+    font-weight: 600;
+}
+
+.consumption { color: var(--avans-red); }
+.production { color: var(--success-color); }
+.energy { color: var(--info-color); }
+.efficiency { color: var(--warning-color); }
+
+.trend-up { 
+    background: rgba(46, 213, 115, 0.2); 
+    color: var(--success-color);
+}
+.trend-down { 
+    background: rgba(196, 30, 58, 0.2); 
+    color: var(--avans-red);
+}
+.trend-neutral { 
+    background: rgba(255, 165, 2, 0.2); 
+    color: var(--warning-color);
+}
+
+.chart-canvas {
+    background: transparent !important;
+    border-radius: 15px;
+}
+
+@media (max-width: 768px) {
+    .dashboard-header h1 {
+        font-size: 2.2rem;
+    }
+    .metric-card, .chart-container, .device-info {
+        padding: 1.5rem;
+    }
+}
+
+.loading-spinner {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 3px solid rgba(255,255,255,0.3);
+    border-radius: 50%;
+    border-top-color: var(--avans-red);
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
