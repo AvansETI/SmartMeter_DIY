@@ -24,7 +24,7 @@
   a central configuration to build the software.
 */
 
-// Remote MQTT server configuration
+// Remote MQTT default server configuration
 #define MQTT_USERNAME             "smartmeter"
 #define MQTT_PASSWORD             "se_smartmeter"
 #define MQTT_REMOTE_HOST          "mqtt.sendlab.nl"

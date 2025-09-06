@@ -96,20 +96,20 @@ public:
   {
     // Handle the TCP data server clients
     uint8_t i = 0;
-    bool foundOpenWiFiClient = false;
+    bool foundAvailableWiFiClient = false;
     WiFiClient client = this->tcpServer.accept();
     if (client) { // we have a new client
-      while ( !foundOpenWiFiClient && i < P1_DATA_SERVER_MAX_CLIENTS ) {
+      while ( !foundAvailableWiFiClient && i < P1_DATA_SERVER_MAX_CLIENTS ) {
         if ( !this->tcpServerClient[i].connected() ) {
           this->tcpServerClient[i] = client;
           this->tcpServerClient[i].setNoDelay(true);
-          this->tcpServerClient[i].write(P1_DATA_SERVER_WELCOME_MSG, strlen(P1_DATA_SERVER_WELCOME_MSG));
-          foundOpenWiFiClient = true;
+          this->tcpServerClient[i].write_P(P1_DATA_SERVER_WELCOME_MSG, strlen_P(P1_DATA_SERVER_WELCOME_MSG)); // constant stored in flash!
+          foundAvailableWiFiClient = true;
         }
         i++;
       }
 
-      if ( !foundOpenWiFiClient ) { // No client found, all clients are already connected
+      if ( !foundAvailableWiFiClient ) { // No client found, all clients are already connected
         client.write(P1_DATA_SERVER_TOO_MANY_CLIENTS_MSG, strlen(P1_DATA_SERVER_TOO_MANY_CLIENTS_MSG));
         client.stop();
       }      
