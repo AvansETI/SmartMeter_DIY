@@ -32,7 +32,7 @@
 #define MQTT_TOPIC                "smartmeter/raw"
 #define MQTT_MSGBUF_SIZE          2048
 #define MQTT_RETRY_TIMEOUT        60000
-#define MQTT_TOPIC_UPDATE_RATE_MS 20000 // Minimun delay between mqtt publish events. Prevents mqtt spam e.g. DSMR 5.0 updates every second!
+#define MQTT_TOPIC_UPDATE_RATE_MS 5000//20000 // Minimun delay between mqtt publish events. Prevents mqtt spam e.g. DSMR 5.0 updates every second!
 #define MQTT_ANONIMIZE_P1         "YES" // YES/NO, default YES while this data is going to an external server
 #define SEC_KEY_SERVER_HOST       "vmacman.jmnl.nl" // "51.77.215.199"
 #define SEC_KEY_SERVER_PORT       "8888"

@@ -44,6 +44,7 @@
         Removed EMON and ETI wordings and go for consistent DIY_SMARTMETER.
         Implemented the dashboard, p1 data server and hardware functionality into seperate library files for readability.
         FSM was not implemented well for the main application, so removed this complexity and lowered flash/stack needs.
+        Add Simulation, so you can test the firmware on your desk. P1 json can be seen on the P1 data server.
 
   Installation Arduino IDE:
   - How to get the Wemos installed in the Ardiuno IDE: https://siytek.com/wemos-d1-mini-arduino-wifi/
@@ -55,16 +56,19 @@
   -------------------------------------------------------------------------*/
 #define VERSION "2.0"
 
+#define DEBUG // Comment to disable debugging messages
+#define SIMULATION // Comment to dsiable simulation
+
 #if defined(ESP8266)
-#include <ESP8266WiFi.h>
-#include <ESP8266WebServer.h>
-#include <ESP8266mDNS.h>
-#include <Ticker.h>
+ #include <ESP8266WiFi.h>
+ #include <ESP8266WebServer.h>
+ #include <ESP8266mDNS.h>
+ #include <Ticker.h>
 
 #elif defined(ESP32)
-#include <WiFi.h>
-#include <WebServer.h>
-#include <ESPmDNS.h>
+ #include <WiFi.h>
+ #include <WebServer.h>
+ #include <ESPmDNS.h>
 #endif
 
 // All includes that are used for both ESP8266 and ESP32
@@ -81,57 +85,43 @@
 #include "include/p1dataserver.hpp"
 #include "include/security.hpp"
 
-#define DEBUG
-//#define SIMULATION
-
-#ifdef SIMULATION
-#include "tests/testdata.h"
-#define DEBUG_PRINTF(format, ...) (Serial.printf(format, __VA_ARGS__))
+#if defined(SIMULATION)
+ #include "tests/testdata.h"
+ #define DEBUG_PRINTF(format, ...) (Serial.printf(format, __VA_ARGS__))
 #else
-#ifdef DEBUG
-#ifdef ESP8266
-#define DEBUG_PRINTF(format, ...) (Serial1.printf(format, __VA_ARGS__))
-#else  // ESP32
-#define DEBUG_PRINTF(format, ...) (Serial.printf(format, __VA_ARGS__))
-#endif
-#else
-#define DEBUG_PRINTF
-#endif
+ #if defined(DEBUG)
+  #if defined(ESP8266)
+   #define DEBUG_PRINTF(format, ...) (Serial1.printf(format, __VA_ARGS__))
+  #else  // ESP32
+   #define DEBUG_PRINTF(format, ...) (Serial.printf(format, __VA_ARGS__))
+  #endif
+ #else
+  #define DEBUG_PRINTF
+ #endif
 #endif
 
-// Local variables
-uint32_t cur = 0, prev = 0;
-WiFiManager wifiManager;
+// Global variables
+WiFiManager wifiManager; // Wifi manager that is used to configure the wifi, MQTT and security settings.
 
 // Application configs struct.
 bool shouldSaveConfig;
 
-// Wifi client used for the MQTT library
+// MQTT variables
 WiFiClient mqttWifiClient;
-
-// Only with some dummy values seems to work ... instead of mqttClient();
-PubSubClient mqttClient("", 0, mqttWifiClient);
+PubSubClient mqttClient("", 0, mqttWifiClient); // Only with some dummy values seems to work ... instead of mqttClient();
 uint32_t mqttTimer = 0;  // Time used to reconnect to the mqtt server, when disconnected (#26)
+char mqtt_topic[128]; // mqtt topic
 
-// Datagram P1 buffer
+void mqtt_heartbeat(void); // Forward declaration for sending P1 message to the MQTT server
+#define HEARTBEAT_UPDATE_INTERVAL_SEC 1000 * 1 // Heartbeat (polling)
+uint32_t heartbeatTimer = 0;
+bool newP1MessageReceived = false;
+
+// P1 datagram variables
 char p1_buf[P1_MAX_DATAGRAM_SIZE];  // Complete P1 telegram
 char *p1;
 
-// Dashboard
-Dashboard dashboard;
-
-// P1 Data Server
-P1DataServer p1DataServer;
-
-// Forward declaration
-void mqtt_heartbeat(void);
-
-// Heartbeat (polling)
-#define HEARTBEAT_UPDATE_INTERVAL_SEC 1000 * 1
-uint32_t heartbeat_prev = 0, mqtt_throttle_prev = 0;
-
-// P1 statemachine
-typedef enum {
+typedef enum { // P1 statemachine to receive the P1 message from the serial connection
   P1_MSG_S0,
   P1_MSG_S1,
   P1_MSG_S2
@@ -144,8 +134,15 @@ typedef struct {
 } MEASUREMENT_STRUCT;
 MEASUREMENT_STRUCT payload = { "" };
 
-// mqtt topic strings: eti-sm
-char mqtt_topic[128];
+// Dashboard and P1 data server
+Dashboard dashboard;
+P1DataServer p1DataServer;
+
+// Calculation of loop time
+float avgLoopTime = 0;
+uint32_t loopTimer = 0;
+
+// End global variables
 
 /******************************************************************/
 void saveConfigCallback()
@@ -220,8 +217,8 @@ Version :      DMK, Initial code
 
   // Load the shared key if it is available
   if (app_config.sec_authentication && strcmp(app_config.sec_shared_key_hex, "") != 0) {
-    Serial.println("LOAD SHARED KEY **********");
-    hexStringToBytes(String(app_config.sec_shared_key_hex), app_config.sec_shared_key, 32);
+    DEBUG_PRINTF(">%s: Shared key loaded from config\n", __FUNCTION__);
+    hexStringToBytes(app_config.sec_shared_key_hex, app_config.sec_shared_key, 32);
   }
   wifiManager.setMinimumSignalQuality(20);
   wifiManager.setTimeout(300);
@@ -306,15 +303,11 @@ Version :      DMK, Initial code
   Serial.println();
   Serial.print(F("************ DIY Smartmeter ********************\n"));
   Serial.print(F("ESP8266 info\n"));
-  Serial.print(F("\tSDK Version       : "));
-  Serial.println(ESP.getSdkVersion());
-  Serial.print(F("\tCore Version      : "));
-  Serial.println(ESP.getCoreVersion().c_str());
-  Serial.print(F("\tCore Frequency    : "));
-  Serial.printf("%d", ESP.getCpuFreqMHz());
+  Serial.print(F("\tSDK Version       : "));  Serial.println(ESP.getSdkVersion());
+  Serial.print(F("\tCore Version      : "));  Serial.println(ESP.getCoreVersion().c_str());
+  Serial.print(F("\tCore Frequency    : "));  Serial.printf("%d", ESP.getCpuFreqMHz());
   Serial.println(F(" Mhz"));
-  Serial.print(F("\tLast reset        : "));
-  Serial.println(ESP.getResetReason().c_str());
+  Serial.print(F("\tLast reset        : "));  Serial.println(ESP.getResetReason().c_str());
 
 #elif defined(ESP32)
   char resetReason[20];
@@ -323,51 +316,33 @@ Version :      DMK, Initial code
   Serial.print(F("\n"));
   Serial.print(F("************ DIY Smartmeter ********************\n"));
   Serial.print(F("ESP32S2 info\n"));
-  Serial.print(F("\tSDK Version        : "));
-  Serial.println(ESP.getSdkVersion());
-  Serial.print(F("\tCore Version       : "));
-  Serial.println(ESP.getCoreVersion());
-  Serial.print(F("\tCore Frequency     : "));
-  Serial.print(ESP.getCpuFreqMHz());
+  Serial.print(F("\tSDK Version        : ")); Serial.println(ESP.getSdkVersion());
+  Serial.print(F("\tCore Version       : ")); Serial.println(ESP.getCoreVersion());
+  Serial.print(F("\tCore Frequency     : ")); Serial.print(ESP.getCpuFreqMHz());
   Serial.println(F(" Mhz"));
-  Serial.print(F("\tLast reset         : "));
-  Serial.println(resetReason);
+  Serial.print(F("\tLast reset         : ")); Serial.println(resetReason);
 #endif
 
-  Serial.print(F("\tFirmware version   : "));
-  Serial.println(VERSION);
+  Serial.print(F("\tFirmware version   : ")); Serial.println(VERSION);
   Serial.print(F("MQTT settings\n"));
-  Serial.print(F("\tmqtt_username     : "));
-  Serial.println(app_config.mqtt_username);
-  Serial.print(F("\tmqtt_password     : "));
-  Serial.println(app_config.mqtt_password);
-  Serial.print(F("\tmqtt_id           : "));
-  Serial.println(app_config.mqtt_id);
-  Serial.print(F("\tmqtt_topic        : "));
-  Serial.println(mqtt_topic);
-  Serial.print(F("\tmqtt_remote_host  : "));
-  Serial.println(app_config.mqtt_remote_host);
-  Serial.print(F("\tmqtt_remote_port  : "));
-  Serial.println(app_config.mqtt_remote_port);
-  Serial.print(F("\tIP address        : "));
-  Serial.println(WiFi.localIP().toString());
-  Serial.print(F("\tmqtt_anonimize_p1 : "));
-  Serial.println(app_config.mqtt_anonimize_p1);
+  Serial.print(F("\tmqtt_username     : "));  Serial.println(app_config.mqtt_username);
+  Serial.print(F("\tmqtt_password     : "));  Serial.println(app_config.mqtt_password);
+  Serial.print(F("\tmqtt_id           : "));  Serial.println(app_config.mqtt_id);
+  Serial.print(F("\tmqtt_topic        : "));  Serial.println(mqtt_topic);
+  Serial.print(F("\tmqtt_remote_host  : "));  Serial.println(app_config.mqtt_remote_host);
+  Serial.print(F("\tmqtt_remote_port  : "));  Serial.println(app_config.mqtt_remote_port);
+  Serial.print(F("\tIP address        : "));  Serial.println(WiFi.localIP().toString());
+  Serial.print(F("\tmqtt_anonimize_p1 : "));  Serial.println(app_config.mqtt_anonimize_p1);
 
   Serial.print(F("DSMR settings\n"));
-  Serial.print(F("\tP1 Baudrate       : "));
-  Serial.print(app_config.p1_baudrate);
+  Serial.print(F("\tP1 Baudrate       : "));  Serial.print(app_config.p1_baudrate);
   Serial.println(F(" baud"));
 
   Serial.print(F("SECURITY settings\n"));
-  Serial.print(F("\tKey server host   : "));
-  Serial.println(app_config.sec_key_server_host);
-  Serial.print(F("\tKey server port   : "));
-  Serial.println(app_config.sec_key_server_port);
-  Serial.print(F("\tClient auth       : "));
-  Serial.println(app_config.sec_authentication);
-  Serial.print(F("\tShared key        : "));
-  Serial.println((strcmp(app_config.sec_shared_key_hex, "") == 0 ? F("Empty") : F("Established")));
+  Serial.print(F("\tKey server host   : "));  Serial.println(app_config.sec_key_server_host);
+  Serial.print(F("\tKey server port   : "));  Serial.println(app_config.sec_key_server_port);
+  Serial.print(F("\tClient auth       : "));  Serial.println(app_config.sec_authentication);
+  Serial.print(F("\tShared key        : "));  Serial.println((strcmp(app_config.sec_shared_key_hex, "") == 0 ? F("Empty") : F("Established")));
 
   // Setup mDNS Service
   if (MDNS.begin("diy_smartmeter")) {
@@ -376,8 +351,7 @@ Version :      DMK, Initial code
     Serial.print(F("mDNS\n"));
     Serial.print(F("\tmDNS URL          : "));
     Serial.println(F("diy_smartmeter.local"));
-    Serial.print(F("\tWeb server        : diy_smartmeter.local:80 (anonimize P1 data: "));
-    Serial.print(app_config.tcp_anonimize_p1);
+    Serial.print(F("\tWeb server        : diy_smartmeter.local:80 (anonimize P1 data: ")); Serial.print(app_config.tcp_anonimize_p1);
     Serial.println(F(")"));
     Serial.print(F("\tData server       : "));
     Serial.println(F("diy_smartmeter.local:3141"));
@@ -432,6 +406,12 @@ Version :      DMK, Initial code
 #ifdef DEBUG
   DEBUG_PRINTF("\n\r%s\n\r", "Debug mode ON ...");
 #endif
+
+#if defined(SIMULATION)
+  strncpy_P(p1_buf, p1_test_data_5_0, sizeof(p1_buf) - 1); // Copy test P1 data
+  p1_buf[sizeof(p1_buf) - 1] = '\0';  // Ensure null termination
+#endif
+
 }
 
 /******************************************************************/
@@ -444,42 +424,26 @@ notes:         MS, Not full implementation of FSM; a lot of logic still in loop(
 Version :      DMK, Initial code
 *******************************************************************/
 {
+  loopTimer = millis(); // Start loop timing measurement
+
   // Check for IP connection
   if (WiFi.status() == WL_CONNECTED) {
+/*
     // If security is enable, create the shared key when it does not exists yet.
     if (app_config.sec_authentication && strcmp(app_config.sec_shared_key_hex, "") == 0) {
+      DEBUG_PRINTF(">%s: Need shared key, start process\n", __FUNCTION__);
       ECDHKeyExchange ecdh(app_config.sec_key_server_host, atoi(app_config.sec_key_server_port));
       uint8_t sharedKey[32];
       if (ecdh.executeKeyExchange(sharedKey, app_config.mqtt_id) == SUCCESS) {
-        strcpy(app_config.sec_shared_key_hex, bytesToHexString(sharedKey, 32, false).c_str());
-        Serial.printf("Shared key created: %s\n", app_config.sec_shared_key_hex);
-        memcpy(app_config.sec_shared_key, sharedKey, 32);
+        char sharedKeyHex[SEC_SHARED_KEY_HEX_LENGTH*2 + 1];
+        bytesToHexString(sharedKey, sizeof(sharedKey), sharedKeyHex, sizeof(sharedKeyHex), false);
+        strcpy(app_config.sec_shared_key_hex, sharedKeyHex);
+        DEBUG_PRINTF(">%s: Shared key created: %s\n", __FUNCTION__, app_config.sec_shared_key_hex);
+        memcpy(app_config.sec_shared_key, sharedKey, sizeof(sharedKey));
         writeAppConfig(&app_config);
       }
     }
-
-    /* Just some security testing
-    if ( app_config.sec_authentication && strcmp(app_config.sec_shared_key_hex, "") != 0 ) {
-      String hkey = ECDHKeyExchange::hashKey(app_config.sec_shared_key, 32);
-      String hmac = generateHMAC(hkey + String(p1_buf), app_config.sec_shared_key, 32);
-      String ehmac = ECDHKeyExchange::encryptMessage(app_config.sec_shared_key, hmac);
-      String dhmac = ECDHKeyExchange::decryptMessage(app_config.sec_shared_key, ehmac);
-      Serial.printf("HMAC:  %s\n", hmac.c_str());
-      Serial.printf("EHMAC: %s\n", ehmac.c_str());
-      Serial.printf("DHMAC: %s\n", dhmac.c_str());
-      Serial.printf("HKEY : %s\n", ECDHKeyExchange::hashKey(app_config.sec_shared_key, 32).c_str());
-    }
-    */
-    /*
-    Serial.println("Start testing the shared key!");
-    printHex(app_config.sec_shared_key, 32);
-    String plain = "Hoi Allemaal!\n";
-    String encrypted = ECDHKeyExchange::encryptMessage(app_config.sec_shared_key, plain);
-    Serial.printf("ENC: %s\n", encrypted.c_str());
-    String test = ECDHKeyExchange::decryptMessage(app_config.sec_shared_key, encrypted);
-    Serial.printf("DEC: %s\n", test.c_str());
-   */
-
+*/
     // Handle mqtt, if not MQTT server is available it uses a timer to reconnect every MQTT_RETRY_TIMEOUT ms.
     // Otherwise, it freezes all other services that are running on the CPU. (#26)
     if (!mqttClient.connected() && (mqttTimer == 0 || millis() > mqttTimer + MQTT_RETRY_TIMEOUT)) {
@@ -495,30 +459,35 @@ Version :      DMK, Initial code
     MDNS.update(); // Handle mDNS service, the ESP32S2 does this automatically.
 #endif
 
-    dashboard.loop();
-    p1DataServer.loop();
+    dashboard.loop(); // Handle dashboard functionality
+    p1DataServer.loop(); // Handle data server functionality
   }
 
-  // Capture P1 messages. If P1 msg is available raise MQTT event
+  // Capture P1 messages.
   if (true == capture_p1()) {
+    newP1MessageReceived = true;
     if (app_config.tcp_anonimize_p1_bool) {  // If enabled, anonimize the P1 data before sending it over the TCP server
       if (!P1DataServer::anonymizeP1(p1_buf)) {
         DEBUG_PRINTF(">%s: Parsing equipment ID error\n\r", __FUNCTION__);
       }
     }
 
-    dashboard.processP1(p1_buf);
-    p1DataServer.sendP1(p1_buf);
+    dashboard.processP1(p1_buf); // Process the information to be used with the dashboard
+    p1DataServer.sendP1(p1_buf); // Process the information to be used with the data server
   }
 
-  //
-  // Handle heartbeat (Ticker.h causes crashes)
-  //
-  uint32_t heartbeat_cur = millis();
-  uint32_t heartbeat_elapsed = heartbeat_cur - heartbeat_prev;
-  if (heartbeat_elapsed >= HEARTBEAT_UPDATE_INTERVAL_SEC) {
+  // When a new P1 message has been received from the smart meter AND the heartbeat timer
+  // has been passed, send the P1 data to the MQTT server. This is used to throttle the 
+  // P1 message to the MQTT server, while the smart meter send each seconds a message.
+  if ( newP1MessageReceived && millis() > heartbeatTimer + MQTT_TOPIC_UPDATE_RATE_MS ) {
     mqtt_heartbeat();
+    heartbeatTimer = millis();
+    newP1MessageReceived = false;
+    DEBUG_PRINTF(">%s: Average loop timing: %fms\n\r", __FUNCTION__, avgLoopTime);
   }
+
+  // Loop timing calculation
+  avgLoopTime = avgLoopTime*0.9 + (millis() - loopTimer)*0.1;
 }
 
 
@@ -649,7 +618,7 @@ Version :      DMK, Initial code
 
         size_t size = configFile.size();
         if (size > 1024) {
-          Serial.println("Config file size is too large");
+          DEBUG_PRINTF(">%s: Config file size is too large\n", __FUNCTION__);
         }
 
         std::unique_ptr<char[]> buf(new char[size]);
@@ -671,7 +640,7 @@ Version :      DMK, Initial code
           strcpy(app_config->sec_authentication, doc["sec_authentication"]);
           app_config->sec_authentication_bool = (strcmp(app_config->sec_authentication, "YES") == 0 ? true : false);
           strcpy(app_config->sec_shared_key_hex, doc["sec_shared_key_hex"]);
-          hexStringToBytes(String(app_config->sec_shared_key_hex), app_config->sec_shared_key, 32);
+          hexStringToBytes(app_config->sec_shared_key_hex, app_config->sec_shared_key, 32);
           strcpy(app_config->sec_key_server_host, doc["sec_key_server_host"]);
           strcpy(app_config->sec_key_server_port, doc["sec_key_server_port"]);
           retval = true;
@@ -798,7 +767,6 @@ Version :      DMK, Initial code
   if (millis() > _simulation_timer + 1000) {  // Every second
     retval = true;
     _simulation_timer = millis();
-    strcpy(p1_buf, p1_test_data_5_0);
     smartLedFlash(RED);
   }
   return retval;
@@ -856,50 +824,50 @@ Version :      DMK, Initial code
 
 /******************************************************************/
 void mqtt_heartbeat(void) {
-  // Throttle mqtt topic speed: check if previous send MQTT
-  // is at least MQTT_TOPIC_UPDATE_RATE_MS seconds ago
-  //
-  uint32_t mqtt_throttle_cur = millis();
-  uint32_t mqtt_throttle_elapsed = mqtt_throttle_cur - mqtt_throttle_prev;
-  if (mqtt_throttle_elapsed >= MQTT_TOPIC_UPDATE_RATE_MS) {
-
-    if (app_config.mqtt_anonimize_p1_bool) {  // If enabled, anonimize the P1 data before sending it to the MQTT server
-      if (!P1DataServer::anonymizeP1(p1_buf)) {
-        DEBUG_PRINTF(">%s: Parsing equipment ID error\n\r", __FUNCTION__);
-      }
+/* 
+short:         Send the P1 message to the MQTT server         
+inputs:        
+outputs:       
+notes:         blocking on captureLine(..) function
+Version :      DMK, Initial code, MS, improved complexity
+*******************************************************************/
+  if (app_config.mqtt_anonimize_p1_bool) {  // If enabled, anonimize the P1 data before sending it to the MQTT server
+    if (!P1DataServer::anonymizeP1(p1_buf)) {
+      DEBUG_PRINTF(">%s: Parsing equipment ID error\n\r", __FUNCTION__);
     }
-
-    //
-    mqtt_throttle_prev = mqtt_throttle_cur;
-
-    // Construct json object and publish
-    JsonDocument doc;
-    JsonObject root = doc.to<JsonObject>();
-
-    JsonObject datagram = root["datagram"].to<JsonObject>();
-    datagram["p1"] = p1_buf;
-    datagram["signature"] = app_config.mqtt_id;
-    datagram["version"] = VERSION;
-    datagram["authentication"] = app_config.sec_authentication;
-
-    // Add security to the datagram, so the server is able to authenticate the client and verify the data
-    if (app_config.sec_authentication && strcmp(app_config.sec_shared_key_hex, "") != 0) {
-      String hkey = ECDHKeyExchange::hashKey(app_config.sec_shared_key, 32);
-      String hmac = generateHMAC(hkey + String(p1_buf), app_config.sec_shared_key, 32);
-      String ehmac = ECDHKeyExchange::encryptMessage(app_config.sec_shared_key, hmac);
-      datagram["hmac"] = hmac.c_str();
-      datagram["ehmac"] = ehmac.c_str();
-    }
-
-    String payload = "";
-    serializeJson(doc, payload);
-#ifdef SIMULATION
-    p1DataServer.sendP1((char*) payload.c_str());
-#else
-    mqttClient.publish(mqtt_topic, payload.c_str());
-#endif
-    // Flash LED
-    smartLedFlash(GREEN);
   }
+
+  // Construct json object and publish
+  JsonDocument doc;
+  JsonObject root = doc.to<JsonObject>();
+
+  JsonObject datagram = root["datagram"].to<JsonObject>();
+  datagram["p1"] = p1_buf;
+  datagram["signature"] = app_config.mqtt_id;
+  datagram["version"] = VERSION;
+  datagram["authentication"] = app_config.sec_authentication;
+
+  // Add security to the datagram, so the server is able to authenticate the client and verify the data
+  if (app_config.sec_authentication && strcmp(app_config.sec_shared_key_hex, "") != 0) {
+    char hkey[64], hmac[256], ehmac[256];
+    ECDHKeyExchange::hashKey(app_config.sec_shared_key, hkey, sizeof(hkey));
+    char p1Hash[P1_MAX_DATAGRAM_SIZE + sizeof(hkey)];
+    strcpy(p1Hash, hkey);
+    strcpy(p1Hash, p1_buf);
+    generateHMAC(p1Hash, app_config.sec_shared_key, hmac, sizeof(hmac));
+    ECDHKeyExchange::encryptMessage(app_config.sec_shared_key, hmac, ehmac, sizeof(ehmac));
+    datagram["hmac"] = hmac;
+    datagram["ehmac"] = ehmac;
+  }
+
+  String payload = "";
+  serializeJson(doc, payload);
+#ifdef SIMULATION
+  p1DataServer.sendP1((char*) payload.c_str());
+#else
+  mqttClient.publish(mqtt_topic, payload.c_str());
+#endif
+
+  smartLedFlash(GREEN); // Flash LED
 }
 
