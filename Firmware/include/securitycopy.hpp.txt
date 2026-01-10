@@ -3,7 +3,7 @@
   Copyright © 2025 Avans Hogeschool Lectoraat Smart Energy
   
   Permission is hereby granted, free of charge, to any person obtaining a 
-  copy of this software and associated documentation files (the "Software"), 
+  copy of this software and associated documentation files (the “Software”), 
   to deal in the Software without restriction, including without limitation 
   the rights to use, copy, modify, merge, publish, distribute, sublicense, 
   and/or sell copies of the Software, and to permit persons to whom the 
@@ -12,7 +12,7 @@
   The above copyright notice and this permission notice shall be included in 
   all copies or substantial portions of the Software.
 
-  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR 
+  THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR 
   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL 
   THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER 
@@ -34,9 +34,8 @@
 
   Enhanced ECDH Security Library for ESP8266/ESP32S2
   Improvements: Better error handling, memory management, security hardening
-  C-String version for reduced memory usage
 
-  V1.1  C-String conversion for memory optimization
+  V1.0  Initial version
   -------------------------------------------------------------------------*/
 #include <Crypto.h>
 #include <SHA256.h>
@@ -45,8 +44,6 @@
 #include <uECC.h>
 #include <WiFiClient.h>
 #include <ArduinoJson.h>
-#include <string.h>
-#include <stdlib.h>
 
 // Configuration constants
 const int CONNECTION_TIMEOUT = 10000;  // 10 seconds
@@ -58,12 +55,6 @@ const size_t KEY_SIZE = 32;
 const size_t IV_SIZE = 16;
 const size_t COORDINATE_SIZE = 32;
 const size_t PUBLIC_KEY_SIZE = 64;
-
-// Buffer size constants
-const size_t MAX_HEX_STRING = 256;
-const size_t MAX_MESSAGE_SIZE = 512;
-const size_t MAX_RESPONSE_SIZE = 1024;
-const size_t MAX_ID_SIZE = 64;
 
 // Error codes enum for better error handling
 enum ECDHError {
@@ -77,35 +68,31 @@ enum ECDHError {
     EXCHANGE_FAILED = 7,
     NO_CONFIRMATION = 8,
     MEMORY_ERROR = 9,
-    CRYPTO_ERROR = 10,
-    BUFFER_OVERFLOW = 11
+    CRYPTO_ERROR = 10
 };
 
 // Utility functions with improved error handling
-bool hexStringToBytes(const char* hexString, uint8_t* bytes, size_t expectedLength) {
-    if (!bytes || !hexString) return false;
+bool hexStringToBytes(const String& hexString, uint8_t* bytes, size_t expectedLength) {
+    if (!bytes) return false;
     
-    const char* cleanHex = hexString;
-    // Skip "0x" prefix if present
-    if (strncmp(hexString, "0x", 2) == 0) {
-        cleanHex = hexString + 2;
+    String cleanHex = hexString;
+    if (cleanHex.startsWith("0x")) {
+        cleanHex = cleanHex.substring(2);
     }
     
-    size_t hexLen = strlen(cleanHex);
-    if (hexLen != expectedLength * 2) {
+    if (cleanHex.length() != expectedLength * 2) {
+        //Serial.printf("Invalid hex length: expected %u, got %u\n", 
+        //             expectedLength * 2, cleanHex.length());
         return false;
     }
     
     for (size_t i = 0; i < expectedLength; i++) {
-        char byteString[3];
-        byteString[0] = cleanHex[i * 2];
-        byteString[1] = cleanHex[i * 2 + 1];
-        byteString[2] = '\0';
-        
+        String byteString = cleanHex.substring(i * 2, i * 2 + 2);
         char* endPtr;
-        long value = strtol(byteString, &endPtr, 16);
+        long value = strtol(byteString.c_str(), &endPtr, 16);
         
         if (*endPtr != '\0' || value < 0 || value > 255) {
+            //Serial.printf("Invalid hex byte at position %u: %s\n", i, byteString.c_str());
             return false;
         }
         
@@ -115,32 +102,23 @@ bool hexStringToBytes(const char* hexString, uint8_t* bytes, size_t expectedLeng
     return true;
 }
 
-bool bytesToHexString(const uint8_t* bytes, size_t length, char* output, size_t outputSize, bool includePrefix = true) {
-    if (!bytes || !output) return false;
+String bytesToHexString(const uint8_t* bytes, size_t length, bool includePrefix = true) {
+    if (!bytes) return "";
     
-    size_t requiredSize = (includePrefix ? 2 : 0) + length * 2 + 1;
-    if (outputSize < requiredSize) return false;
-    
-    char* ptr = output;
-    
-    if (includePrefix) {
-        strcpy(ptr, "0x");
-        ptr += 2;
-    }
+    String hexString = includePrefix ? "0x" : "";
+    hexString.reserve(hexString.length() + length * 2);
     
     for (size_t i = 0; i < length; i++) {
-        sprintf(ptr, "%02x", bytes[i]);
-        ptr += 2;
+        if (bytes[i] < 16) hexString += "0";
+        hexString += String(bytes[i], HEX);
     }
-    *ptr = '\0';
-    
-    return true;
+    return hexString;
 }
 
-void printHex(const uint8_t* data, size_t length, const char* label = "") {
+void printHex(const uint8_t* data, size_t length, const String& label = "") {
     if (!data) return;
     
-    if (strlen(label) > 0) {
+    if (label.length() > 0) {
         Serial.print(label);
         Serial.print(": ");
     }
@@ -181,39 +159,30 @@ public:
 };
 
 // Enhanced HMAC with better security
-bool generateHMAC(const char* message, const uint8_t* key, char* output, size_t outputSize, size_t keySize = KEY_SIZE) {
-    if (!key || !message || !output || keySize == 0 || outputSize < (KEY_SIZE * 2 + 1)) {
-        return false;
-    }
+String generateHMAC(const String& message, const uint8_t* key, size_t keySize = KEY_SIZE) {
+    if (!key || keySize == 0) return "";
     
     SHA256 hasher;
     hasher.reset();
     hasher.update(key, keySize);
-    hasher.update(message, strlen(message));
+    hasher.update(message.c_str(), message.length());
     
     uint8_t hash[KEY_SIZE];
     hasher.finalize(hash, KEY_SIZE);
     
-    return bytesToHexString(hash, KEY_SIZE, output, outputSize, false);
+    return bytesToHexString(hash, KEY_SIZE, false);
 }
 
-bool verifyHMAC(const char* message, const char* receivedHMAC, const uint8_t* key) {
-    char calculatedHMAC[KEY_SIZE * 2 + 1];
-    
-    if (!generateHMAC(message, key, calculatedHMAC, sizeof(calculatedHMAC))) {
-        return false;
-    }
+bool verifyHMAC(const String& message, const String& receivedHMAC, const uint8_t* key) {
+    String calculatedHMAC = generateHMAC(message, key);
     
     // Constant-time comparison to prevent timing attacks
-    size_t calcLen = strlen(calculatedHMAC);
-    size_t recvLen = strlen(receivedHMAC);
-    
-    if (calcLen != recvLen) {
+    if (calculatedHMAC.length() != receivedHMAC.length()) {
         return false;
     }
     
     uint8_t result = 0;
-    for (size_t i = 0; i < calcLen; i++) {
+    for (size_t i = 0; i < calculatedHMAC.length(); i++) {
         result |= calculatedHMAC[i] ^ receivedHMAC[i];
     }
     
@@ -234,19 +203,10 @@ private:
         memset(private_key, 0, KEY_SIZE);
         memset(shared_secret, 0, KEY_SIZE);
     }
-
-    // Helper method to yield control and feed watchdog
-    void yieldAndFeedWDT() {
-        yield();
-        #if defined(ESP8266)
-        ESP.wdtFeed();
-        #endif
-    }
     
 public:
-    ECDHKeyExchange(const char* serverIp, int serverPort) : keys_generated(false) {
-        strncpy(this->serverIp, serverIp, sizeof(this->serverIp) - 1);
-        this->serverIp[sizeof(this->serverIp) - 1] = '\0';
+    ECDHKeyExchange(char* serverIp, int serverPort) : keys_generated(false) {
+        strcpy(this->serverIp, serverIp);
         this->serverPort = serverPort;
 
         uECC_set_rng(&rng);
@@ -279,10 +239,12 @@ public:
         secureWipe();
         
         if (!uECC_make_key(public_key, private_key, curve)) {
+            //Serial.println("ERROR: Failed to generate ECDH key pair");
             return false;
         }
         
         keys_generated = true;
+        //Serial.println("SUCCESS: ECDH key pair generated");
         return true;
     }
     
@@ -303,6 +265,7 @@ public:
         const struct uECC_Curve_t* curve = uECC_secp256r1();
         
         if (!uECC_shared_secret(peer_public, private_key, shared_secret, curve)) {
+            //Serial.println("ERROR: Failed to compute shared secret");
             return false;
         }
         
@@ -320,64 +283,61 @@ public:
     
     void printPublicKey() const {
         if (!keys_generated) {
+            //Serial.println("No key pair generated");
             return;
         }
         printHex(public_key, PUBLIC_KEY_SIZE, "Public Key");
     }
     
-    ECDHError executeKeyExchange(uint8_t encryption_key[KEY_SIZE], const char* id) {
-        if (!encryption_key || !id) return MEMORY_ERROR;
+    ECDHError executeKeyExchange(uint8_t encryption_key[KEY_SIZE], String id) {
+        if (!encryption_key) return MEMORY_ERROR;
         
         // Generate key pair with retry logic
         int retries = 0;
         while (!generateKeyPair() && retries < MAX_RETRIES) {
             retries++;
             delay(100);
-            this->yieldAndFeedWDT();
         }
         
         if (!keys_generated) {
+            //Serial.println("FATAL: Could not generate key pair after retries");
             return CRYPTO_ERROR;
         }
         
+        //printPublicKey();
+        
         WiFiClient client;
-        this->yieldAndFeedWDT();
+        //Serial.printf("Connecting to %s:%d...\n", SERVER_IP, SERVER_PORT);
+        
         if (!client.connect(this->serverIp, this->serverPort)) {
+            //Serial.println("ERROR: Connection to server failed");
             return CONNECTION_FAILED;
         }
+        
+        //Serial.println("SUCCESS: Connected to server");
         
         // Wait for server's public key with timeout
         unsigned long timeout = millis() + CONNECTION_TIMEOUT;
         while (!client.available() && millis() < timeout) {
             delay(50);
-            this->yieldAndFeedWDT();
         }
         
         if (!client.available()) {
+            //Serial.println("ERROR: Timeout waiting for server response");
             client.stop();
             return TIMEOUT_ERROR;
         }
         
-        // Read server response into buffer
-        char response[MAX_RESPONSE_SIZE];
-        size_t responseLen = 0;
-        
-        while (client.available() && responseLen < sizeof(response) - 1) {
-            char c = client.read();
-            if (c == '\n') break;
-            response[responseLen++] = c;
-        }
-        response[responseLen] = '\0';
-        
-        // Trim whitespace
-        while (responseLen > 0 && (response[responseLen-1] == '\r' || response[responseLen-1] == ' ')) {
-            response[--responseLen] = '\0';
-        }
+        // Read and parse server response
+        String response = client.readStringUntil('\n');
+        response.trim();
+        //Serial.printf("Server response: %s\n", response.c_str());
         
         JsonDocument serverDoc;
         DeserializationError error = deserializeJson(serverDoc, response);
         
         if (error) {
+            //Serial.printf("ERROR: JSON parsing failed: %s\n", error.c_str());
             client.stop();
             return JSON_PARSE_ERROR;
         }
@@ -385,16 +345,18 @@ public:
         // Validate and extract server's public key
         if (!serverDoc.containsKey("server_public_x") || 
             !serverDoc.containsKey("server_public_y")) {
+            //Serial.println("ERROR: Missing server public key fields");
             client.stop();
             return KEY_PARSE_ERROR;
         }
         
-        const char* server_x_hex = serverDoc["server_public_x"];
-        const char* server_y_hex = serverDoc["server_public_y"];
+        String server_x_hex = serverDoc["server_public_x"];
+        String server_y_hex = serverDoc["server_public_y"];
         
         uint8_t server_x[COORDINATE_SIZE], server_y[COORDINATE_SIZE];
         if (!hexStringToBytes(server_x_hex, server_x, COORDINATE_SIZE) || 
             !hexStringToBytes(server_y_hex, server_y, COORDINATE_SIZE)) {
+            //Serial.println("ERROR: Failed to parse server public key");
             client.stop();
             return KEY_PARSE_ERROR;
         }
@@ -409,29 +371,17 @@ public:
         uint8_t our_x[COORDINATE_SIZE], our_y[COORDINATE_SIZE];
         getPublicKeyCoordinates(our_x, our_y);
         
-        char our_x_hex[COORDINATE_SIZE * 2 + 1];
-        char our_y_hex[COORDINATE_SIZE * 2 + 1];
-        
-        if (!bytesToHexString(our_x, COORDINATE_SIZE, our_x_hex, sizeof(our_x_hex), false) ||
-            !bytesToHexString(our_y, COORDINATE_SIZE, our_y_hex, sizeof(our_y_hex), false)) {
-            client.stop();
-            return MEMORY_ERROR;
-        }
-        
         JsonDocument clientDoc;
-        clientDoc["client_public_x"] = our_x_hex;
-        clientDoc["client_public_y"] = our_y_hex;
-        clientDoc["id"] = id;
+        clientDoc["client_public_x"] = bytesToHexString(our_x, COORDINATE_SIZE);
+        clientDoc["client_public_y"] = bytesToHexString(our_y, COORDINATE_SIZE);
+        clientDoc["id"]              = id;
         
-        char clientMessage[MAX_MESSAGE_SIZE];
-        size_t messageLen = serializeJson(clientDoc, clientMessage, sizeof(clientMessage) - 2);
-        if (messageLen == 0 || messageLen >= sizeof(clientMessage) - 2) {
-            client.stop();
-            return MEMORY_ERROR;
-        }
+        String clientMessage;
+        serializeJson(clientDoc, clientMessage);
+        clientMessage += "\n";
         
-        strcat(clientMessage, "\n");
         client.print(clientMessage);
+        //Serial.println("SUCCESS: Sent public key to server");
         
         // Wait for confirmation
         timeout = millis() + RESPONSE_TIMEOUT;
@@ -440,126 +390,98 @@ public:
         }
         
         if (!client.available()) {
+            //Serial.println("ERROR: No confirmation received");
             client.stop();
             return NO_CONFIRMATION;
         }
         
-        // Read confirmation response
-        responseLen = 0;
-        memset(response, 0, sizeof(response));
-        
-        while (client.available() && responseLen < sizeof(response) - 1) {
-            char c = client.read();
-            if (c == '\n') break;
-            response[responseLen++] = c;
-        }
-        response[responseLen] = '\0';
-        
-        // Trim whitespace
-        while (responseLen > 0 && (response[responseLen-1] == '\r' || response[responseLen-1] == ' ')) {
-            response[--responseLen] = '\0';
-        }
+        String confirmation = client.readStringUntil('\n');
+        confirmation.trim();
+        //Serial.printf("Server confirmation: %s\n", confirmation.c_str());
         
         JsonDocument confirmDoc;
-        if (deserializeJson(confirmDoc, response) != DeserializationError::Ok) {
+        if (deserializeJson(confirmDoc, confirmation) != DeserializationError::Ok) {
+            //Serial.println("ERROR: Failed to parse confirmation");
             client.stop();
             return JSON_PARSE_ERROR;
         }
         
-        const char* status = confirmDoc["status"];
-        if (!status || strcmp(status, "success") != 0) {
+        if (confirmDoc["status"] != "success") {
+            //Serial.println("ERROR: Key exchange failed");
             client.stop();
             return EXCHANGE_FAILED;
         }
         
         // Derive and verify encryption key
         deriveEncryptionKey(encryption_key);
+        //printHex(encryption_key, KEY_SIZE, "Derived encryption key");
         
         // Verify key hash if provided
         if (confirmDoc.containsKey("key_hash")) {
-            const char* server_hash = confirmDoc["key_hash"];
+            String server_hash = confirmDoc["key_hash"];
             
             SHA256 sha256;
             sha256.update(encryption_key, KEY_SIZE);
             uint8_t hash[KEY_SIZE];
             sha256.finalize(hash, KEY_SIZE);
             
-            char our_hash[17]; // First 8 bytes = 16 hex chars + null
-            if (!bytesToHexString(hash, 8, our_hash, sizeof(our_hash), false)) {
-                client.stop();
-                return MEMORY_ERROR;
-            }
+            String our_hash = bytesToHexString(hash, 8, false); // First 8 bytes
             
-            // Case-insensitive comparison
-            bool hashMatch = true;
-            size_t serverHashLen = strlen(server_hash);
-            size_t ourHashLen = strlen(our_hash);
-            
-            if (serverHashLen != ourHashLen) {
-                hashMatch = false;
-            } else {
-                for (size_t i = 0; i < ourHashLen; i++) {
-                    char c1 = tolower(server_hash[i]);
-                    char c2 = tolower(our_hash[i]);
-                    if (c1 != c2) {
-                        hashMatch = false;
-                        break;
-                    }
-                }
-            }
-            
-            if (!hashMatch) {
+            if (!our_hash.equalsIgnoreCase(server_hash)) {
+                //Serial.println("ERROR: Key verification failed");
                 client.stop();
                 return KEY_VERIFICATION_ERROR;
             }
+            
+            //Serial.println("SUCCESS: Key verification passed");
         } else {
+            //Serial.println("ERROR: Key verification failed hash not provided");
             client.stop();
             return KEY_VERIFICATION_ERROR;
         }
         
         client.stop();
+        //Serial.println("=== ECDH KEY EXCHANGE COMPLETED SUCCESSFULLY ===");
         return SUCCESS;
     }
     
-    static bool hashKey(const uint8_t key[32], char* output, size_t outputSize) {
-        if (!key || !output || outputSize < (32 * 2 + 1)) return false;
-        
+    static String hashKey (uint8_t key[32], uint8_t s) {
         SHA256 sha256;
         sha256.update(key, 32);
         uint8_t hash[32];
         sha256.finalize(hash, 32);
 
-        return bytesToHexString(hash, 32, output, outputSize, false);
+        String h = bytesToHexString(hash, 32, false);
+        
+        return h;
     }
     
-    static bool encryptMessage(const uint8_t* sharedKey, const char* plaintext, char* output, size_t outputSize) {
-        if (!sharedKey || !plaintext || !output || strlen(plaintext) == 0) return false;
-        
-        size_t plaintextLen = strlen(plaintext);
+    static String encryptMessage(const uint8_t* sharedKey, const String& plaintext) {
+        if (!sharedKey || plaintext.length() == 0) return "";
         
         // Generate cryptographically strong IV
         SecureBuffer ivBuffer(IV_SIZE);
-        if (!ivBuffer.isValid()) return false;
+        if (!ivBuffer.isValid()) return "";
         
         uint8_t* iv = ivBuffer.get();
         rng(iv, IV_SIZE);
         
         // Calculate padded length for PKCS7
-        size_t paddedLen = ((plaintextLen / 16) + 1) * 16;
+        size_t paddedLen = ((plaintext.length() / 16) + 1) * 16;
         SecureBuffer paddedBuffer(paddedLen);
         SecureBuffer cipherBuffer(paddedLen);
         
         if (!paddedBuffer.isValid() || !cipherBuffer.isValid()) {
-            return false;
+            return "";
         }
         
         uint8_t* paddedText = paddedBuffer.get();
         uint8_t* ciphertext = cipherBuffer.get();
         
         // Apply PKCS7 padding
-        memcpy(paddedText, plaintext, plaintextLen);
-        uint8_t padValue = paddedLen - plaintextLen;
-        for (size_t i = plaintextLen; i < paddedLen; i++) {
+        memcpy(paddedText, plaintext.c_str(), plaintext.length());
+        uint8_t padValue = paddedLen - plaintext.length();
+        for (size_t i = plaintext.length(); i < paddedLen; i++) {
             paddedText[i] = padValue;
         }
         
@@ -569,49 +491,29 @@ public:
         ctr.setIV(iv, IV_SIZE);
         ctr.encrypt(ciphertext, paddedText, paddedLen);
         
-        // Check output buffer size
-        size_t requiredSize = (IV_SIZE + paddedLen) * 2 + 1;
-        if (outputSize < requiredSize) return false;
-        
-        // Convert IV to hex
-        char ivHex[IV_SIZE * 2 + 1];
-        char cipherHex[paddedLen * 2 + 1];
-        
-        if (!bytesToHexString(iv, IV_SIZE, ivHex, sizeof(ivHex), false) ||
-            !bytesToHexString(ciphertext, paddedLen, cipherHex, sizeof(cipherHex), false)) {
-            return false;
-        }
-        
         // Combine IV + ciphertext
-        strcpy(output, ivHex);
-        strcat(output, cipherHex);
+        String result = bytesToHexString(iv, IV_SIZE, false) + 
+                        bytesToHexString(ciphertext, paddedLen, false);
         
-        return true;
+        return result;
     }
     
-    static bool decryptMessage(const uint8_t* sharedKey, const char* encryptedData, char* output, size_t outputSize) {
-        if (!sharedKey || !encryptedData || !output) return false;
+    static String decryptMessage(const uint8_t* sharedKey, const String& encryptedData) {
+        if (!sharedKey || encryptedData.length() < IV_SIZE * 2) return "";
         
-        size_t encDataLen = strlen(encryptedData);
-        if (encDataLen < IV_SIZE * 2) return false;
+        // Extract IV and ciphertext
+        String ivHex = encryptedData.substring(0, IV_SIZE * 2);
+        String cipherHex = encryptedData.substring(IV_SIZE * 2);
         
-        // Extract IV and ciphertext hex strings
-        char ivHex[IV_SIZE * 2 + 1];
-        strncpy(ivHex, encryptedData, IV_SIZE * 2);
-        ivHex[IV_SIZE * 2] = '\0';
+        if (cipherHex.length() % 32 != 0) return ""; // Must be 16-byte aligned
         
-        const char* cipherHex = encryptedData + (IV_SIZE * 2);
-        size_t cipherHexLen = strlen(cipherHex);
-        
-        if (cipherHexLen % 32 != 0) return false; // Must be 16-byte aligned
-        
-        size_t cipherLen = cipherHexLen / 2;
+        size_t cipherLen = cipherHex.length() / 2;
         SecureBuffer ivBuffer(IV_SIZE);
         SecureBuffer cipherBuffer(cipherLen);
         SecureBuffer plainBuffer(cipherLen);
         
         if (!ivBuffer.isValid() || !cipherBuffer.isValid() || !plainBuffer.isValid()) {
-            return false;
+            return "";
         }
         
         uint8_t* iv = ivBuffer.get();
@@ -621,7 +523,7 @@ public:
         // Convert hex to bytes
         if (!hexStringToBytes(ivHex, iv, IV_SIZE) ||
             !hexStringToBytes(cipherHex, ciphertext, cipherLen)) {
-            return false;
+            return "";
         }
         
         // Decrypt
@@ -632,22 +534,25 @@ public:
         
         // Remove PKCS7 padding
         uint8_t padValue = plaintext[cipherLen - 1];
-        if (padValue > 16 || padValue == 0) return false;
+        if (padValue > 16 || padValue == 0) return "";
         
         size_t actualLen = cipherLen - padValue;
         
         // Verify padding
         for (size_t i = actualLen; i < cipherLen; i++) {
-            if (plaintext[i] != padValue) return false;
+            if (plaintext[i] != padValue) return "";
         }
         
-        // Check output buffer size
-        if (outputSize <= actualLen) return false;
+        // Create result string
+        char* result = (char*)malloc(actualLen + 1);
+        if (!result) return "";
         
-        // Copy result
-        memcpy(output, plaintext, actualLen);
-        output[actualLen] = '\0';
+        memcpy(result, plaintext, actualLen);
+        result[actualLen] = '\0';
         
-        return true;
+        String decrypted = String(result);
+        free(result);
+        
+        return decrypted;
     }
 };

@@ -56,7 +56,7 @@ const char P1_DATA_SERVER_TOO_MANY_CLIENTS_MSG[] PROGMEM = "DIY Smartmeter P1 - 
 class P1DataServer {
 private:
   WiFiServer tcpServer; // TCP/IP server
-  WiFiClient tcpServerClient[P1_DATA_SERVER_MAX_CLIENTS]; // TCP/IP connected clients
+  WiFiClient* tcpServerClient[P1_DATA_SERVER_MAX_CLIENTS]; // TCP/IP connected clients
 
   // Helper method to yield control and feed watchdog
   void yieldAndFeedWDT() {
@@ -67,8 +67,8 @@ private:
   }
 
   // Safe write with timeout and chunking
-  bool safeWrite(WiFiClient& client, const char* data, size_t len) {
-    if (!client.connected()) {
+  bool safeWrite(WiFiClient* client, const char* data, size_t len) {
+    if (!client->connected()) {
       return false;
     }
     
@@ -82,15 +82,15 @@ private:
       
       size_t chunkSize = min(len - written, (size_t)P1_DATA_SERVER_MAX_WRITE_CHUNK); // Calculate chunk size
       
-      size_t bytesWritten = client.write(data + written, chunkSize); // Try to write chunk
+      size_t bytesWritten = client->write(data + written, chunkSize); // Try to write chunk
       if (bytesWritten == 0) {
-        yieldAndFeedWDT(); // Write failed or buffer full, yield and try again
+        this->yieldAndFeedWDT(); // Write failed or buffer full, yield and try again
         delay(1); // Small delay to allow buffer to drain
         continue;
       }
       
       written += bytesWritten;
-      yieldAndFeedWDT(); // Yield between chunks
+      this->yieldAndFeedWDT(); // Yield between chunks
     }
     
     return true;
@@ -108,6 +108,9 @@ public:
   Version: MS, Initial code
   *******************************************************************/
   {
+    for (uint8_t i=0; i < P1_DATA_SERVER_MAX_CLIENTS; i++) {
+     tcpServerClient[i] = nullptr; 
+    }
   }
 
   /******************************************************************/
@@ -121,6 +124,7 @@ public:
   *******************************************************************/
   {
     this->tcpServer.begin();
+    this->tcpServer.setNoDelay(true); // Disable Nagle algorithm for better responsiveness
   }
 
   /******************************************************************/
@@ -138,35 +142,39 @@ public:
 
     // Handle the TCP data server clients
     uint8_t i = 0;
-    WiFiClient client = this->tcpServer.accept();
-    if (client) { // we have a new client
-      bool foundAvailableSlot = false;
-      while ( !foundAvailableSlot && i < P1_DATA_SERVER_MAX_CLIENTS ) {
-        if ( !this->tcpServerClient[i].connected() ) {
-          this->tcpServerClient[i] = client;
-          this->tcpServerClient[i].setNoDelay(true);
+    if ( this->tcpServer.hasClient() ) {
+      WiFiClient client = this->tcpServer.accept();
+      if (client) { // we have a new client
+        bool foundAvailableSlot = false;
+        while ( !foundAvailableSlot && i < P1_DATA_SERVER_MAX_CLIENTS ) {
+          if ( this->tcpServerClient[i] == nullptr ) {//|| !this->tcpServerClient[i]->connected() ) {
+            this->tcpServerClient[i] = new WiFiClient(client);
+            this->tcpServerClient[i]->setNoDelay(true);
 
-          // Send welcome message safely
-          const char* welcomeMsg = P1_DATA_SERVER_WELCOME_MSG;
-          size_t msgLen = strlen_P(welcomeMsg);
-          
-          if (!this->safeWrite(this->tcpServerClient[i], welcomeMsg, msgLen)) {
-            this->tcpServerClient[i].stop();
+            // Send welcome message safely
+            const char* welcomeMsg = P1_DATA_SERVER_WELCOME_MSG;
+            size_t msgLen = strlen_P(welcomeMsg);
+            
+            if (!this->safeWrite(this->tcpServerClient[i], welcomeMsg, msgLen)) {
+              this->tcpServerClient[i]->stop();
+              delete this->tcpServerClient[i];
+              this->tcpServerClient[i] = nullptr;
+            }
+            //this->tcpServerClient[i].write_P(P1_DATA_SERVER_WELCOME_MSG, strlen_P(P1_DATA_SERVER_WELCOME_MSG)); // constant stored in flash!
+            foundAvailableSlot = true;
           }
-          //this->tcpServerClient[i].write_P(P1_DATA_SERVER_WELCOME_MSG, strlen_P(P1_DATA_SERVER_WELCOME_MSG)); // constant stored in flash!
-          foundAvailableSlot = true;
+          this->yieldAndFeedWDT(); // Yield during client search
+          i++;
         }
-        this->yieldAndFeedWDT(); // Yield during client search
-        i++;
-      }
 
-      if ( !foundAvailableSlot ) { // No client found, all clients are already connected
-        const char* rejectMsg = P1_DATA_SERVER_TOO_MANY_CLIENTS_MSG;
-        size_t msgLen = strlen_P(rejectMsg);
-        this->safeWrite(client, rejectMsg, msgLen);
-        //client.write_P(P1_DATA_SERVER_TOO_MANY_CLIENTS_MSG, strlen_P(P1_DATA_SERVER_TOO_MANY_CLIENTS_MSG));
-        client.stop();
-      }      
+        if ( !foundAvailableSlot ) { // No client found, all clients are already connected
+          const char* rejectMsg = P1_DATA_SERVER_TOO_MANY_CLIENTS_MSG;
+          size_t msgLen = strlen_P(rejectMsg);
+          this->safeWrite(&client, rejectMsg, msgLen);
+          //client.write_P(P1_DATA_SERVER_TOO_MANY_CLIENTS_MSG, strlen_P(P1_DATA_SERVER_TOO_MANY_CLIENTS_MSG));
+          client.stop();
+        }      
+      }
     }
   }
 
@@ -185,13 +193,15 @@ public:
     }
 
     for ( uint8_t i=0; i < P1_DATA_SERVER_MAX_CLIENTS; i++ ) {
-      if ( this->tcpServerClient[i].connected() ) { // Send the P1 data to the connected clients
+      if ( this->tcpServerClient[i] != nullptr && this->tcpServerClient[i]->connected() ) { // Send the P1 data to the connected clients
         if (!safeWrite(tcpServerClient[i], p1, strlen(p1))) {
-          tcpServerClient[i].stop();
+          tcpServerClient[i]->stop();
+          delete this->tcpServerClient[i];
+          this->tcpServerClient[i] = nullptr;
         }
         //this->tcpServerClient[i].write(p1, strlen(p1));
       }
-      yieldAndFeedWDT(); // Yield between clients
+      this->yieldAndFeedWDT(); // Yield between clients
     }
   }
 

@@ -140,7 +140,7 @@ P1DataServer p1DataServer;
 
 // Calculation of loop time
 float avgLoopTime = 0;
-uint32_t loopTimer = 0;
+unsigned long loopTimer = 0;
 
 // End global variables
 
@@ -301,68 +301,67 @@ Version :      DMK, Initial code
   // Always print config to terminal before swapping serial port
 #if defined(ESP8266)
   Serial.println();
-  Serial.print(F("************ DIY Smartmeter ********************\n"));
-  Serial.print(F("ESP8266 info\n"));
-  Serial.print(F("\tSDK Version       : "));  Serial.println(ESP.getSdkVersion());
-  Serial.print(F("\tCore Version      : "));  Serial.println(ESP.getCoreVersion().c_str());
-  Serial.print(F("\tCore Frequency    : "));  Serial.printf("%d", ESP.getCpuFreqMHz());
-  Serial.println(F(" Mhz"));
-  Serial.print(F("\tLast reset        : "));  Serial.println(ESP.getResetReason().c_str());
+  Serial.print(("************ DIY Smartmeter ********************\n"));
+  Serial.print(("ESP8266 info\n"));
+  Serial.print(("\tSDK Version       : "));  Serial.println(ESP.getSdkVersion());
+  Serial.print(("\tCore Version      : "));  Serial.println(ESP.getCoreVersion().c_str());
+  Serial.print(("\tCore Frequency    : "));  Serial.printf("%d", ESP.getCpuFreqMHz());
+  Serial.println((" Mhz"));
+  Serial.print(("\tLast reset        : "));  Serial.println(ESP.getResetReason().c_str());
 
 #elif defined(ESP32)
   char resetReason[20];
   getResetReason(resetReason);
 
-  Serial.print(F("\n"));
-  Serial.print(F("************ DIY Smartmeter ********************\n"));
-  Serial.print(F("ESP32S2 info\n"));
-  Serial.print(F("\tSDK Version        : ")); Serial.println(ESP.getSdkVersion());
-  Serial.print(F("\tCore Version       : ")); Serial.println(ESP.getCoreVersion());
-  Serial.print(F("\tCore Frequency     : ")); Serial.print(ESP.getCpuFreqMHz());
-  Serial.println(F(" Mhz"));
-  Serial.print(F("\tLast reset         : ")); Serial.println(resetReason);
+  Serial.print(("\n"));
+  Serial.print(("************ DIY Smartmeter ********************\n"));
+  Serial.print(("ESP32S2 info\n"));
+  Serial.print(("\tSDK Version        : ")); Serial.println(ESP.getSdkVersion());
+  Serial.print(("\tCore Version       : ")); Serial.println(ESP.getCoreVersion());
+  Serial.print(("\tCore Frequency     : ")); Serial.print(ESP.getCpuFreqMHz());
+  Serial.println((" Mhz"));
+  Serial.print(("\tLast reset         : ")); Serial.println(resetReason);
 #endif
 
-  Serial.print(F("\tFirmware version   : ")); Serial.println(VERSION);
-  Serial.print(F("MQTT settings\n"));
-  Serial.print(F("\tmqtt_username     : "));  Serial.println(app_config.mqtt_username);
-  Serial.print(F("\tmqtt_password     : "));  Serial.println(app_config.mqtt_password);
-  Serial.print(F("\tmqtt_id           : "));  Serial.println(app_config.mqtt_id);
-  Serial.print(F("\tmqtt_topic        : "));  Serial.println(mqtt_topic);
-  Serial.print(F("\tmqtt_remote_host  : "));  Serial.println(app_config.mqtt_remote_host);
-  Serial.print(F("\tmqtt_remote_port  : "));  Serial.println(app_config.mqtt_remote_port);
-  Serial.print(F("\tIP address        : "));  Serial.println(WiFi.localIP().toString());
-  Serial.print(F("\tmqtt_anonimize_p1 : "));  Serial.println(app_config.mqtt_anonimize_p1);
+  Serial.print(("\tFirmware version   : ")); Serial.println(VERSION);
+  Serial.print(("MQTT settings\n"));
+  Serial.print(("\tmqtt_username     : "));  Serial.println(app_config.mqtt_username);
+  Serial.print(("\tmqtt_password     : "));  Serial.println(app_config.mqtt_password);
+  Serial.print(("\tmqtt_id           : "));  Serial.println(app_config.mqtt_id);
+  Serial.print(("\tmqtt_topic        : "));  Serial.println(mqtt_topic);
+  Serial.print(("\tmqtt_remote_host  : "));  Serial.println(app_config.mqtt_remote_host);
+  Serial.print(("\tmqtt_remote_port  : "));  Serial.println(app_config.mqtt_remote_port);
+  Serial.print(("\tIP address        : "));  Serial.println(WiFi.localIP().toString());
+  Serial.print(("\tmqtt_anonimize_p1 : "));  Serial.println(app_config.mqtt_anonimize_p1);
 
-  Serial.print(F("DSMR settings\n"));
-  Serial.print(F("\tP1 Baudrate       : "));  Serial.print(app_config.p1_baudrate);
-  Serial.println(F(" baud"));
+  Serial.print(("DSMR settings\n"));
+  Serial.print(("\tP1 Baudrate       : "));  Serial.print(app_config.p1_baudrate);
+  Serial.println((" baud"));
 
-  Serial.print(F("SECURITY settings\n"));
-  Serial.print(F("\tKey server host   : "));  Serial.println(app_config.sec_key_server_host);
-  Serial.print(F("\tKey server port   : "));  Serial.println(app_config.sec_key_server_port);
-  Serial.print(F("\tClient auth       : "));  Serial.println(app_config.sec_authentication);
-  Serial.print(F("\tShared key        : "));  Serial.println((strcmp(app_config.sec_shared_key_hex, "") == 0 ? F("Empty") : F("Established")));
+  Serial.print(("SECURITY settings\n"));
+  Serial.print(("\tKey server host   : "));  Serial.println(app_config.sec_key_server_host);
+  Serial.print(("\tKey server port   : "));  Serial.println(app_config.sec_key_server_port);
+  Serial.print(("\tClient auth       : "));  Serial.println(app_config.sec_authentication);
+  Serial.print(("\tShared key        : "));  Serial.println((strcmp(app_config.sec_shared_key_hex, "") == 0 ? F("Empty") : F("Established")));
 
   // Setup mDNS Service
   if (MDNS.begin("diy_smartmeter")) {
     MDNS.addService("http", "tcp", WEB_SERVER_PORT);
     MDNS.addService("p1data", "tcp", P1_DATA_SERVER_PORT);
-    Serial.print(F("mDNS\n"));
-    Serial.print(F("\tmDNS URL          : "));
-    Serial.println(F("diy_smartmeter.local"));
-    Serial.print(F("\tWeb server        : diy_smartmeter.local:80 (anonimize P1 data: ")); Serial.print(app_config.tcp_anonimize_p1);
-    Serial.println(F(")"));
-    Serial.print(F("\tData server       : "));
-    Serial.println(F("diy_smartmeter.local:3141"));
+    Serial.print(("mDNS\n"));
+    Serial.print(("\tmDNS URL          : "));
+    Serial.println(("diy_smartmeter.local"));
+    Serial.println(("\tWeb server        : diy_smartmeter.local:80")); 
+    Serial.print(("\tData server       : diy_smartmeter.local:3141 (anonimize P1 data: ")); Serial.print(app_config.tcp_anonimize_p1);
+    Serial.println((")"));
   } else {
-    Serial.print(F("mDNS:   Could not start the mDNS service!\n"));
+    Serial.print(("mDNS:   Could not start the mDNS service!\n"));
   }
 
-  Serial.print(F("***************************************************\n\n"));
+  Serial.print(("***************************************************\n\n"));
 #ifdef SIMULATION  // Simulation P1 message
-  Serial.print(F("SIMULATION ACTIVE!\n\n"));
-  Serial.print(F("***************************************************\n\n"));
+  Serial.print(("SIMULATION ACTIVE!\n\n"));
+  Serial.print(("***************************************************\n\n"));
 #endif
   Serial.flush();
 
@@ -424,13 +423,12 @@ notes:         MS, Not full implementation of FSM; a lot of logic still in loop(
 Version :      DMK, Initial code
 *******************************************************************/
 {
-  loopTimer = millis(); // Start loop timing measurement
+  loopTimer = micros(); // Start loop timing measurement
 
   // Check for IP connection
   if (WiFi.status() == WL_CONNECTED) {
-/*
     // If security is enable, create the shared key when it does not exists yet.
-    if (app_config.sec_authentication && strcmp(app_config.sec_shared_key_hex, "") == 0) {
+    if (app_config.sec_authentication_bool && strcmp(app_config.sec_shared_key_hex, "") == 0) {
       DEBUG_PRINTF(">%s: Need shared key, start process\n", __FUNCTION__);
       ECDHKeyExchange ecdh(app_config.sec_key_server_host, atoi(app_config.sec_key_server_port));
       uint8_t sharedKey[32];
@@ -443,7 +441,7 @@ Version :      DMK, Initial code
         writeAppConfig(&app_config);
       }
     }
-*/
+DEBUG_PRINTF(">%s: YESS\n", __FUNCTION__);
     // Handle mqtt, if not MQTT server is available it uses a timer to reconnect every MQTT_RETRY_TIMEOUT ms.
     // Otherwise, it freezes all other services that are running on the CPU. (#26)
     if (!mqttClient.connected() && (mqttTimer == 0 || millis() > mqttTimer + MQTT_RETRY_TIMEOUT)) {
@@ -483,11 +481,11 @@ Version :      DMK, Initial code
     mqtt_heartbeat();
     heartbeatTimer = millis();
     newP1MessageReceived = false;
-    DEBUG_PRINTF(">%s: Average loop timing: %fms\n\r", __FUNCTION__, avgLoopTime);
+    DEBUG_PRINTF(">%s: Average loop timing: %0.1fus\n\r", __FUNCTION__, avgLoopTime);
   }
 
   // Loop timing calculation
-  avgLoopTime = avgLoopTime*0.9 + (millis() - loopTimer)*0.1;
+  avgLoopTime = avgLoopTime + (( (micros() - loopTimer) - avgLoopTime ) / 1000.0); // Moving average 1000-points
 }
 
 
@@ -848,7 +846,8 @@ Version :      DMK, Initial code, MS, improved complexity
   datagram["authentication"] = app_config.sec_authentication;
 
   // Add security to the datagram, so the server is able to authenticate the client and verify the data
-  if (app_config.sec_authentication && strcmp(app_config.sec_shared_key_hex, "") != 0) {
+  if (app_config.sec_authentication_bool && strcmp(app_config.sec_shared_key_hex, "") != 0) {
+    DEBUG_PRINTF("%s:Adding security to the MQTT message\n\r", __FUNCTION__);
     char hkey[64], hmac[256], ehmac[256];
     ECDHKeyExchange::hashKey(app_config.sec_shared_key, hkey, sizeof(hkey));
     char p1Hash[P1_MAX_DATAGRAM_SIZE + sizeof(hkey)];
