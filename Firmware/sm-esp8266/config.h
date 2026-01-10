@@ -24,30 +24,5 @@
   a central configuration to build the software.
 */
 
-// Remote MQTT server configuration
-#define MQTT_USERNAME             "smartmeter"
-#define MQTT_PASSWORD             "se_smartmeter"
-#define MQTT_REMOTE_HOST          "mqtt.sendlab.nl"
-#define MQTT_REMOTE_PORT          "11883"
-#define MQTT_TOPIC                "smartmeter/raw"
-#define MQTT_MSGBUF_SIZE          2048
-#define MQTT_RETRY_TIMEOUT        60000
-#define MQTT_TOPIC_UPDATE_RATE_MS 20000 // Minimun delay between mqtt publish events. Prevents mqtt spam e.g. DSMR 5.0 updates every second!
-#define MQTT_ANONIMIZE_P1         "YES" // YES/NO, default YES while this data is going to an external server
 
 
-// MQTT client configuration
-#define P1_TELEGRAM_SIZE           2048
-#define P1_MAX_DATAGRAM_SIZE       2048
-#define MQTT_USERNAME_LENGTH       32
-#define MQTT_PASSWORD_LENGTH       32
-#define MQTT_ID_TOKEN_LENGTH       64
-#define MQTT_TOPIC_STRING_LENGTH   64
-#define MQTT_REMOTE_HOST_LENGTH    128
-#define MQTT_REMOTE_PORT_LENGTH    10
-#define P1_BAUDRATE_LENGTH         10
-#define MQTT_ANONIMIZE_P1_LENGTH   32
-
-// Local services configuration
-#define TCP_ANONIMIZE_P1            "NO"    // YES/NO, default NO while this data stays in the local network
-#define TCP_ANONIMIZE_P1_LENGTH     32
